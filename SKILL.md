@@ -177,6 +177,25 @@ Bloque de código (```) listo para pegar en una sesión nueva. Debe:
 - El bloque de relevo dentro de triple backtick.
 - Mencionar cualquier dato `[estimado]` o `[no verificado]`.
 
+### Paso 7 — Tag de cierre en el selector `/resume` (manual)
+
+El título que `/resume` muestra para esta sesión **no lo controla este skill** (el harness lo
+deriva del primer mensaje, salvo que la sesión tenga nombre). Para que la sesión cerrada aparezca
+tageada en `/resume`, **imprime al usuario esta línea lista para pegar** en la sesión actual
+(Claude NO puede ejecutar slash-commands; los tipea el usuario):
+
+```
+/rename [closed-pending] <workstream>
+```
+
+- `<workstream>` = el mismo label del código del handoff (ej. `landing`, `proveedor-pms`).
+- `/rename` solo renombra la **sesión activa** (la que se está cerrando) → por eso este paso va
+  en CIERRE y no en RECEPCIÓN.
+- El salto a `[closed]` tras un relevo exitoso **no** se puede hacer con `/rename` desde la sesión
+  nueva. Si lo quieres en `/resume`, hazlo manualmente en el selector con `Ctrl+R` sobre la sesión
+  vieja. Es **opcional**: el estado canónico de cierre/relevo vive en `SESSION_HANDOFF.md`, no en
+  el título de `/resume`.
+
 ---
 
 # MODO RECEPCIÓN — `/handoff resume [código]`
@@ -196,6 +215,11 @@ Relevo: una sesión nueva reclama un handoff vivo.
 
 Una sección solo se consume cuando alguien leyó su contenido de verdad. Si no la vas a
 volcar, NO la transiciones a `[closed] ✅`.
+
+> **Tag opcional en `/resume`:** si en el selector `/resume` la sesión vieja quedó como
+> `[closed-pending]` (por el Paso 7 de su cierre), puedes subirla a `[closed]` manualmente con
+> `Ctrl+R` sobre esa entrada. No es automático ni obligatorio; el estado real ya quedó en
+> `SESSION_HANDOFF.md`.
 
 ---
 
