@@ -23,21 +23,22 @@ sesión. Con varias en paralelo, cada cierre pisa al anterior y se pierde estado
 `SESSION_HANDOFF.md` deja de ser un snapshot y pasa a ser un **registro de handoffs vivos**:
 
 ```
-🟢 vivo  ──/handoff resume <código>──▶  ✅ consumido (tombstone)  ──/handoff purge──▶  (borrado)
+[closed-pending] 🟢 vivo  ──/handoff resume <código>──▶  [closed] ✅ consumido (tombstone)  ──/handoff purge──▶  (borrado)
 ```
 
 - Cada handoff es una **sección con código único** (`HO-AAAAMMDD-<workstream>-HHMM`) y estado.
+- El header de cada sección lleva una **etiqueta de texto pareada con el emoji**: `[closed-pending]` (🟢, sesión cerrada pero aún no relevada) y `[closed]` (✅, sesión cerrada y relevada). Transicionan juntos; el emoji es la fuente canónica y la etiqueta su alias grepeable.
 - Varios handoffs de distintos workstreams **coexisten** en el archivo.
-- Una sección 🟢 es **intocable** salvo por el `resume` que la transiciona a ✅.
-- Borrar solo es legal sobre secciones ✅.
+- Una sección `[closed-pending] 🟢` es **intocable** salvo por el `resume` que la transiciona a `[closed] ✅`.
+- Borrar solo es legal sobre secciones `[closed] ✅`.
 
 ## Los tres modos
 
 | Modo | Disparador | Qué hace |
 |------|-----------|----------|
-| **Cierre** (default) | `/handoff`, "cierra la sesión", "haz el handoff", "wrap up" | Append a `sprint_report.md` + inserta sección 🟢 codificada en `SESSION_HANDOFF.md` + genera bloque de relevo en chat. **Nunca sobrescribe** secciones de otros workstreams. |
-| **Recepción** | `/handoff resume [código]`, "retoma la sesión", "continúa el workstream X" | Vuelca el detalle del handoff como contexto de arranque y lo marca ✅ (tombstone). |
-| **Purga** | `/handoff purge [código]`, "limpia handoffs consumidos" | Borra secciones ✅. **Jamás toca una 🟢.** |
+| **Cierre** (default) | `/handoff`, "cierra la sesión", "haz el handoff", "wrap up" | Append a `sprint_report.md` + inserta sección `[closed-pending] 🟢` codificada en `SESSION_HANDOFF.md` + genera bloque de relevo en chat. **Nunca sobrescribe** secciones de otros workstreams. |
+| **Recepción** | `/handoff resume [código]`, "retoma la sesión", "continúa el workstream X" | Vuelca el detalle del handoff como contexto de arranque y lo transiciona a `[closed] ✅` (tombstone). |
+| **Purga** | `/handoff purge [código]`, "limpia handoffs consumidos" | Borra secciones `[closed] ✅`. **Jamás toca una `[closed-pending] 🟢`.** |
 
 ## Artefactos que produce
 
@@ -83,7 +84,7 @@ Claude Code detecta la skill por el frontmatter de `SKILL.md`. Invócala con `/h
 .
 ├── SKILL.md                              # Definición de la skill (frontmatter + lógica de los 3 modos)
 ├── templates/
-│   ├── session_handoff_section.md        # Header del registro + plantilla de sección 🟢
+│   ├── session_handoff_section.md        # Header del registro + plantilla de sección [closed-pending] 🟢
 │   └── sprint_report_entry.md            # Plantilla de entrada del sprint report
 ├── README.md
 └── LICENSE
@@ -91,10 +92,10 @@ Claude Code detecta la skill por el frontmatter de `SKILL.md`. Invócala con `/h
 
 ## Reglas duras (resumen)
 
-- `SESSION_HANDOFF.md` **nunca se sobrescribe completo**: solo insertar sección 🟢, transicionar por código (🟢→✅) o borrar ✅.
+- `SESSION_HANDOFF.md` **nunca se sobrescribe completo**: solo insertar sección `[closed-pending] 🟢`, transicionar por código (`[closed-pending] 🟢`→`[closed] ✅`, etiqueta y emoji juntos) o borrar `[closed] ✅`.
 - `sprint_report.md` es **append-only**: re-leer del disco y añadir al final, nunca reconstruir desde memoria.
 - **No inventar datos**: lo no medido no se reporta; lo estimado se etiqueta `[estimado]`.
-- Una sección solo se marca ✅ **cuando alguien volcó su contenido de verdad**.
+- Una sección solo se transiciona a `[closed] ✅` **cuando alguien volcó su contenido de verdad**.
 - La skill **no audita código** ni toca `AUDIT_LOG.md` (solo lectura para cross-reference).
 
 ## Licencia

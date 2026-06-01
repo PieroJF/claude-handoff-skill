@@ -6,12 +6,15 @@
 
 # SESSION_HANDOFF — {{NOMBRE_PROYECTO}}
 
-> Registro de handoffs. 🟢 vivo = aún no retomado · ✅ consumido = purgable.
+> Registro de handoffs. `[closed-pending] 🟢` vivo = sesión cerrada, aún no relevada ·
+> `[closed] ✅` consumido = sesión cerrada y relevada, purgable.
 > Reclamar: `/handoff resume <código>`   ·   Limpiar: `/handoff purge`
 
-<!-- ===== BLOQUE 2: SECCIÓN DE HANDOFF (insertar una por cierre, estado 🟢) ===== -->
+<!-- ===== BLOQUE 2: SECCIÓN DE HANDOFF (insertar una por cierre, estado [closed-pending] 🟢) =====
+     La etiqueta [closed-pending] y el emoji 🟢 son un token pareado: transicionan juntos a
+     [closed] ✅ al consumir. El emoji es la fuente canónica; la etiqueta es su alias grepeable. -->
 
-## 🟢 {{HO-AAAAMMDD-workstream-HHMM}} — {{workstream}}
+## [closed-pending] 🟢 {{HO-AAAAMMDD-workstream-HHMM}} — {{workstream}}
 
 > Generado: {{YYYY-MM-DD HH:MM}} [estimado]
 
@@ -51,5 +54,6 @@
 2. `sprint_report.md` — entrada con el mismo código `{{HO-...}}`
 3. `AUDIT_LOG.md` — si existe (bugs pendientes y clasificación)
 
-<!-- Al consumir (modo resume), esta sección entera se reemplaza por su tombstone:
-     ## ✅ {{HO-...}} — {{workstream}} · consumido {{AAAA-MM-DD}} · detalle en sprint_report.md -->
+<!-- Al consumir (modo resume), esta sección entera se reemplaza por su tombstone
+     (etiqueta y emoji transicionan juntos: [closed-pending] 🟢 → [closed] ✅):
+     ## [closed] ✅ {{HO-...}} — {{workstream}} · consumido {{AAAA-MM-DD}} · detalle en sprint_report.md -->

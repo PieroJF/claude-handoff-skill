@@ -14,7 +14,7 @@ usuario corre **varias sesiones en paralelo sobre distintos workstreams** (ej: `
 1. **`sprint_report.md`** — Append-only. Historial acumulativo de TODAS las sesiones del
    proyecto. Responde "¿qué hicimos en esta sesión?". Es el `git log`.
 2. **`SESSION_HANDOFF.md`** — **Registro de handoffs vivos**, NO un snapshot sobrescribible.
-   Cada handoff es una sección con código único y estado (🟢 vivo / ✅ consumido). Varios
+   Cada handoff es una sección con código único y estado (`[closed-pending] 🟢` vivo / `[closed] ✅` consumido). Varios
    handoffs de distintos workstreams coexisten. Responde "¿qué relevos hay pendientes y
    cómo se retoma cada uno?".
 3. **Bloque de relevo en chat** — Copy-paste inmediato para arrancar una sesión nueva.
@@ -32,32 +32,41 @@ cierre inserta su propia sección con código único; nada vivo se sobrescribe j
 
 ```markdown
 # SESSION_HANDOFF — <proyecto>
-> Registro de handoffs. 🟢 vivo = aún no retomado · ✅ consumido = purgable.
+> Registro de handoffs. [closed-pending] 🟢 vivo = sesión cerrada, aún no relevada ·
+> [closed] ✅ consumido = sesión cerrada y relevada, purgable.
 > Reclamar: /handoff resume <código>   ·   Limpiar: /handoff purge
 
-## 🟢 HO-20260529-landing-1834 — landing
+## [closed-pending] 🟢 HO-20260529-landing-1834 — landing
 （detalle completo del handoff: ver template de sección）
 
-## 🟢 HO-20260529-proveedor-pms-1620 — proveedor-pms
+## [closed-pending] 🟢 HO-20260529-proveedor-pms-1620 — proveedor-pms
 （detalle completo…）
 
-## ✅ HO-20260528-onboarding-2210 — onboarding · consumido 2026-05-29 · detalle en sprint_report.md
+## [closed] ✅ HO-20260528-onboarding-2210 — onboarding · consumido 2026-05-29 · detalle en sprint_report.md
 ```
+
+**Etiqueta de estado en el nombre.** El header de cada sección lleva una etiqueta de texto
+**pareada con el emoji**: `[closed-pending]` acompaña a 🟢 (la sesión que generó el handoff
+ya cerró, pero el relevo aún no se recibió) y `[closed]` acompaña a ✅ (la sesión cerró y el
+handoff se relevó con éxito en una sesión nueva). El emoji es la **fuente canónica** de
+estado; la etiqueta es su **alias en texto** (grepeable). Transicionan **siempre juntos**.
 
 **Ciclo de vida (unidireccional):**
 
 ```
-🟢 vivo  ──/handoff resume <código>──▶  ✅ consumido (tombstone)  ──/handoff purge──▶  (borrado)
+[closed-pending] 🟢 vivo  ──/handoff resume <código>──▶  [closed] ✅ consumido (tombstone)  ──/handoff purge──▶  (borrado)
 ```
 
 **REGLA CENTRAL (no negociable):** borrar o reescribir una sección SOLO es legal si está
-✅. Una sección 🟢 es **intocable**, salvo por el `resume` que la transiciona a ✅.
+`[closed] ✅`. Una sección `[closed-pending] 🟢` es **intocable**, salvo por el `resume` que la transiciona a `[closed] ✅`.
 
 **Código de handoff:** `HO-AAAAMMDD-<workstream>-HHMM`.
 - `<workstream>` = label corto kebab-case del tema de la sesión.
 - `HHMM` = hora estimada de cierre.
 - Si colisiona (mismo workstream, mismo minuto): añadir letra → `...-1834b`.
 - Verificar unicidad escaneando los códigos existentes en el archivo antes de fijarlo.
+- La etiqueta de estado (`[closed-pending]` / `[closed]`) se antepone al **header** de la
+  sección y **no** forma parte del código. El `resume` localiza por código, no por etiqueta.
 
 ## Alcance
 
@@ -130,20 +139,25 @@ Localizar `sprint_report.md` en la raíz del proyecto.
 
 Localizar `SESSION_HANDOFF.md` en la raíz del proyecto.
 
-1. **Si no existe:** crear con el header del registro (ver template) + tu sección 🟢.
-2. **Si existe pero NO tiene ninguna sección `## (🟢|✅) HO-`** (formato legacy, snapshot
-   viejo): su contenido previo es un handoff sin codificar. Convertirlo en **una** sección
-   🟢 con código `HO-AAAAMMDD-legacy-HHMM` bajo el header nuevo. NO descartar ese contenido.
+1. **Si no existe:** crear con el header del registro (ver template) + tu sección `[closed-pending] 🟢`.
+2. **Si existe pero NO tiene ninguna sección que matchee `## (\[closed(-pending)?\] )?(🟢|✅) HO-`**
+   (formato legacy, snapshot viejo): su contenido previo es un handoff sin codificar. Convertirlo
+   en **una** sección `[closed-pending] 🟢` con código `HO-AAAAMMDD-legacy-HHMM` bajo el header
+   nuevo. NO descartar ese contenido.
+   **La detección se ancla en el emoji (🟢|✅) y tolera la etiqueta de texto opcional antes de él.**
+   Un archivo cuyas secciones ya llevan `[closed-pending]`/`[closed]` NO es legacy — nunca lo
+   re-envuelvas.
 3. **Generar el código** `HO-AAAAMMDD-<workstream>-HHMM` (verificar unicidad).
-4. **Colapsar a tombstone** las secciones ✅ que sigan con cuerpo completo (su detalle ya
+4. **Colapsar a tombstone** las secciones `[closed] ✅` que sigan con cuerpo completo (su detalle ya
    vive en `sprint_report.md` por código). Comprimir a una línea:
-   `## ✅ HO-... — <workstream> · consumido AAAA-MM-DD · detalle en sprint_report.md`.
+   `## [closed] ✅ HO-... — <workstream> · consumido AAAA-MM-DD · detalle en sprint_report.md`.
    No las borres aquí — eso es trabajo de `purge`.
-5. **Insertar tu sección 🟢 nueva** usando `templates/session_handoff_section.md`.
+5. **Insertar tu sección `[closed-pending] 🟢` nueva** usando `templates/session_handoff_section.md`.
 
 **PROHIBIDO el overwrite total del archivo.** Las únicas operaciones legales sobre
-`SESSION_HANDOFF.md` son: insertar una sección 🟢 nueva, colapsar/transicionar una sección
-por su código, o (en modo purge) borrar secciones ✅. NUNCA tocar una sección 🟢 ajena.
+`SESSION_HANDOFF.md` son: insertar una sección `[closed-pending] 🟢` nueva, colapsar/transicionar
+una sección por su código (🟢→✅, moviendo etiqueta y emoji juntos), o (en modo purge) borrar
+secciones `[closed] ✅`. NUNCA tocar una sección `[closed-pending] 🟢` ajena.
 
 ### Paso 5 — Generar bloque de relevo en chat
 
@@ -169,26 +183,28 @@ Bloque de código (```) listo para pegar en una sesión nueva. Debe:
 
 Relevo: una sesión nueva reclama un handoff vivo.
 
-- **Sin código:** leer `SESSION_HANDOFF.md`, listar todas las secciones 🟢 con su workstream
-  y siguiente-paso en una línea. Preguntar cuál retomar. No marcar nada todavía.
+- **Sin código:** leer `SESSION_HANDOFF.md`, listar todas las secciones `[closed-pending] 🟢` con su
+  workstream y siguiente-paso en una línea. Preguntar cuál retomar. No marcar nada todavía.
 - **Con código:**
   1. Localizar la sección por su código.
-  2. Si no existe o ya está ✅: avisar claramente. NO alucinar contenido, NO inventar un handoff.
+  2. Si no existe o ya está `[closed] ✅`: avisar claramente. NO alucinar contenido, NO inventar un handoff.
   3. Volcar el detalle completo de la sección como contexto de arranque de la nueva sesión.
   4. Leer también la entrada de `sprint_report.md` con ese código y `AUDIT_LOG.md` si existe.
-  5. **Marcar la sección 🟢 → ✅ y colapsar su cuerpo a tombstone** de una línea:
-     `## ✅ HO-... — <workstream> · consumido AAAA-MM-DD · detalle en sprint_report.md`.
+  5. **Transicionar la sección `[closed-pending] 🟢 → [closed] ✅` (etiqueta y emoji a la vez) y
+     colapsar su cuerpo a tombstone** de una línea:
+     `## [closed] ✅ HO-... — <workstream> · consumido AAAA-MM-DD · detalle en sprint_report.md`.
 
 Una sección solo se consume cuando alguien leyó su contenido de verdad. Si no la vas a
-volcar, NO la marques ✅.
+volcar, NO la transiciones a `[closed] ✅`.
 
 ---
 
 # MODO PURGA — `/handoff purge [código]`
 
-- Borra secciones **✅** del `SESSION_HANDOFF.md`. Sin código → todas las ✅. Con código → solo esa.
-- **JAMÁS toca una sección 🟢.** Si el código apunta a una 🟢, rechazar y explicar que primero
-  debe consumirse con `resume`.
+- Borra secciones **`[closed] ✅`** del `SESSION_HANDOFF.md`. Sin código → todas las `[closed] ✅`.
+  Con código → solo esa.
+- **JAMÁS toca una sección `[closed-pending] 🟢`.** Si el código apunta a una `[closed-pending] 🟢`,
+  rechazar y explicar que primero debe consumirse con `resume`.
 
 ---
 
@@ -197,13 +213,14 @@ volcar, NO la marques ✅.
 1. **No inventar datos.** Métricas, líneas, porcentajes, timestamps exactos. Si no se midió, no se reporta. Si se estima, se etiqueta.
 2. **No omitir secciones.** Si no aplica, "N/A". Formato consistente entre sesiones, no negociable.
 3. **`sprint_report.md` es append-only literal.** Re-leer fresco + append al final. Nunca reescribir el archivo entero ni resumir entradas previas.
-4. **`SESSION_HANDOFF.md` nunca se sobrescribe completo.** Solo insertar sección 🟢, transicionar/colapsar por código, o borrar ✅ en purge.
-5. **Una sección 🟢 es intocable** salvo el `resume` que la marca ✅. Cerrar una sesión NUNCA toca el handoff vivo de otro workstream.
+4. **`SESSION_HANDOFF.md` nunca se sobrescribe completo.** Solo insertar sección `[closed-pending] 🟢`, transicionar/colapsar por código, o borrar `[closed] ✅` en purge.
+5. **Una sección `[closed-pending] 🟢` es intocable** salvo el `resume` que la transiciona a `[closed] ✅`. Cerrar una sesión NUNCA toca el handoff vivo de otro workstream.
 6. **Cada cierre = código único.** Nunca reusar un código vivo.
-7. **`purge` jamás borra 🟢.**
+7. **`purge` jamás borra `[closed-pending] 🟢`.**
 8. **No ejecutar auditoría.** Si el usuario la espera dentro del handoff, recordar que son skills distintos.
 9. **No tocar `AUDIT_LOG.md`.** Solo lectura para cross-reference.
 10. **Trazabilidad de plan obligatoria.** Cada fase referencia su plan origen (título y/o archivo) o declara "Sin plan formal".
+11. **Etiqueta y emoji son un token pareado.** El header de cada sección lleva `[closed-pending] 🟢` o `[closed] ✅`. La transición 🟢→✅ es **simultáneamente** `[closed-pending]`→`[closed]`: nunca muevas uno sin el otro. El emoji es la fuente canónica de estado; la etiqueta es su alias grepeable. La detección de secciones se ancla en el emoji y tolera la etiqueta opcional.
 
 ## Racionalizaciones prohibidas
 
@@ -213,18 +230,22 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 |--------|----------|
 | "SESSION_HANDOFF es el git status / un snapshot único, así que lo sobrescribo" | Ya NO. Es un registro aditivo de handoffs vivos. El snapshot único era el bug. |
 | "El estado de la otra sesión no se pierde, queda en git history" | **Falso.** La sesión receptora NO lee git history; lee `SESSION_HANDOFF.md`. Y el archivo puede no estar commiteado al cierre. Overwrite = pérdida real. |
-| "Se consolidará cuando esa sesión haga su propio /handoff" | Eso es su append a `sprint_report`, no su relevo. Si borraste su sección 🟢, su siguiente-paso y advertencias ya se perdieron. |
+| "Se consolidará cuando esa sesión haga su propio /handoff" | Eso es su append a `sprint_report`, no su relevo. Si borraste su sección `[closed-pending] 🟢`, su siguiente-paso y advertencias ya se perdieron. |
 | "La consigna era cerrar solo lo mío, y la skill mandaba overwrite" | Cerrar lo tuyo = insertar TU sección. Tocar lo ajeno (overwrite) es lo contrario de "solo lo mío". |
-| "Marco la sección como consumida aunque no la volqué, para limpiar" | Consumir sin volcar = pérdida silenciosa. Solo `resume` que vuelca el detalle puede marcar ✅. |
+| "Marco la sección como consumida aunque no la volqué, para limpiar" | Consumir sin volcar = pérdida silenciosa. Solo `resume` que vuelca el detalle puede transicionar a `[closed] ✅`. |
 | "Reconstruyo sprint_report completo desde mi contexto, es más limpio" | Tu contexto está stale. Una sesión hermana pudo escribir después. Re-leer + append literal. |
+| "Actualizo el emoji de estado y la etiqueta `[closed...]` da igual / la actualizo después" | No. Etiqueta y emoji son un token pareado; desincronizarlos rompe el grep y confunde el estado. Muévelos juntos en la misma edición. |
+| "El archivo no matchea `## (🟢|✅) HO-`, debe ser legacy, lo re-envuelvo" | Si las secciones llevan `[closed-pending]`/`[closed]` NO es legacy. La detección se ancla en el emoji y tolera la etiqueta. Re-envolver destruiría handoffs ya codificados. |
 
 ## Red flags — PARA
 
 - Estás por hacer `Write` del archivo `SESSION_HANDOFF.md` completo → es overwrite, prohibido. Usa edición de sección.
-- Estás por borrar o editar una sección 🟢 que no es la que estás consumiendo → prohibido.
+- Estás por borrar o editar una sección `[closed-pending] 🟢` que no es la que estás consumiendo → prohibido.
 - Estás justificando una pérdida con "git history" o "se consolidará después" → señal de overwrite encubierto.
-- Vas a marcar ✅ algo que no volcaste → pérdida silenciosa.
+- Vas a transicionar a `[closed] ✅` algo que no volcaste → pérdida silenciosa.
 - Vas a reconstruir `sprint_report.md` desde memoria en vez de re-leer el disco → lost-update.
+- Vas a mover el emoji de estado sin mover su etiqueta de texto (o al revés) → desincronización del token pareado. Mueve `[closed-pending] 🟢` y `[closed] ✅` como una unidad.
+- Vas a clasificar como legacy un `SESSION_HANDOFF.md` cuyas secciones ya llevan `[closed-pending]`/`[closed]` → la detección se ancla en el emoji y tolera la etiqueta; NO es legacy.
 
 ## Integración con otras skills
 
@@ -242,4 +263,4 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 - Inventar timestamps "exactos" sin `[estimado]`.
 - Saltar el bloque de chat porque "ya está en el archivo" → el usuario lo pidió para portabilidad.
 - Listar fases sin referenciar plan origen → trazabilidad rota a los 3 meses.
-- Marcar ✅ un handoff sin haberlo volcado → relevo fantasma.
+- Transicionar a `[closed] ✅` un handoff sin haberlo volcado → relevo fantasma.
