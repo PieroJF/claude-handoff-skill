@@ -57,7 +57,7 @@ OTROS PROYECTOS (solo lectura · idle y sin 🟢 propio)
 (`idle` = sin turno activo ahora, no = días sin actividad)
 ```
 
-**Cuenta antes de volcar.** Medido en esta máquina: 56 secciones 🟢 repartidas en 13 registros, hasta
+**Cuenta antes de volcar.** Medido en esta máquina: 65 secciones 🟢 repartidas en 13 registros, hasta
 12 en uno solo. Un inventario que las liste todas es ruido. Detalle de los 5 más recientes, total
 arriba, resto bajo petición.
 

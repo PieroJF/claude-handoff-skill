@@ -375,13 +375,15 @@ abiertas, cuáles guardan contexto que se perdería, y qué handoffs 🟢 siguen
 2. **`ListAgents`.** Anotar nombre, `[ref]`, tipo y estado de cada peer.
 3. **Descubrir los registros.** `find` acotado de `SESSION_HANDOFF.md`, **sin rutas solapadas**:
    pasar `~/Desktop/claude` y `~/Desktop` a la vez duplica cada resultado. Usa la raíz mayor con
-   `-maxdepth 4`, o `-prune`. De cada registro, leer **con `cat`** solo su header y sus códigos 🟢.
+   `-maxdepth 4`, o `-prune`. **Las rutas llevan espacios** (`WORKSPACE28/SITIO-WEB-PROD`):
+   usa `-print0` o `while read`, nunca `| xargs` a pelo — parte la ruta y ese registro desaparece
+   del inventario en silencio. Medido: así se perdieron 8 secciones de un conteo. De cada registro, leer **con `cat`** solo su header y sus códigos 🟢.
    **Identifica cada registro por su RUTA, nunca por su nombre de proyecto.** Los worktrees declaran
    el mismo nombre que su repo padre — en esta máquina tres rutas distintas dicen `app-reservas` —
    así que agrupar por nombre mezcla registros que no tienen nada que ver.
 4. **Cruzar y presentar en dos bloques** (formato en `cross-session.md`).
    **Cuenta primero, vuelca después.** Un proyecto puede acumular decenas de secciones 🟢 sin relevar
-   (medido en esta máquina: 56 repartidas en 13 registros, hasta 12 en uno solo). Volcarlas todas
+   (medido en esta máquina: 65 repartidas en 13 registros, hasta 12 en uno solo). Volcarlas todas
    convierte el inventario en ruido:
    - **ESTE PROYECTO:** total de 🟢 y, en detalle, **solo los 5 más recientes** por código, con la
      vitalidad de su dueña (viva / muerta) resuelta contra `ListAgents` fresco. Si hay más, decir
