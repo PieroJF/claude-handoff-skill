@@ -373,16 +373,25 @@ abiertas, cuáles guardan contexto que se perdería, y qué handoffs 🟢 siguen
 1. **Cargar tools.** `ToolSearch "select:ListAgents,SendMessage"`. Si no cargan, este modo no puede
    operar: decirlo y parar. No hay fallback a disco para un inventario de sesiones vivas.
 2. **`ListAgents`.** Anotar nombre, `[ref]`, tipo y estado de cada peer.
-3. **Descubrir los registros.** `find` acotado de `SESSION_HANDOFF.md` bajo las raíces conocidas
-   (`~/Desktop/claude`, `~/Desktop`, `~/worktrees`, maxdepth 3). De cada uno, leer **con `cat`** solo
-   su header y sus códigos 🟢: cada registro ya declara su proyecto y su raíz. Nada más se lee.
-4. **Cruzar y presentar en dos bloques** (formato en `cross-session.md`):
-   - **ESTE PROYECTO:** cada handoff 🟢 con la vitalidad de su dueña (viva / muerta), resuelta por
-     la línea `Canal:` contra `ListAgents` fresco.
+3. **Descubrir los registros.** `find` acotado de `SESSION_HANDOFF.md`, **sin rutas solapadas**:
+   pasar `~/Desktop/claude` y `~/Desktop` a la vez duplica cada resultado. Usa la raíz mayor con
+   `-maxdepth 4`, o `-prune`. De cada registro, leer **con `cat`** solo su header y sus códigos 🟢.
+   **Identifica cada registro por su RUTA, nunca por su nombre de proyecto.** Los worktrees declaran
+   el mismo nombre que su repo padre — en esta máquina tres rutas distintas dicen `app-reservas` —
+   así que agrupar por nombre mezcla registros que no tienen nada que ver.
+4. **Cruzar y presentar en dos bloques** (formato en `cross-session.md`).
+   **Cuenta primero, vuelca después.** Un proyecto puede acumular decenas de secciones 🟢 sin relevar
+   (medido en esta máquina: 56 repartidas en 13 registros, hasta 12 en uno solo). Volcarlas todas
+   convierte el inventario en ruido:
+   - **ESTE PROYECTO:** total de 🟢 y, en detalle, **solo los 5 más recientes** por código, con la
+     vitalidad de su dueña (viva / muerta) resuelta contra `ListAgents` fresco. Si hay más, decir
+     cuántas quedan y ofrecer listarlas. Prioriza las de dueña viva: son las únicas consultables.
    - **OTROS PROYECTOS (solo lectura):** sesiones `idle` **y** sin sección 🟢 propia, ordenadas por
      antigüedad de arranque. Ese es el criterio: `idle` es estado real y "dejó handoff" es verificable
      en disco. **No existe el dato "días sin actividad"** — `started 17d ago` es cuándo arrancó, no
      cuánto lleva parada. Nunca marcar a nadie por días.
+   - Si el total de 🟢 de este proyecto pasa de 10, decirlo como lo que es: un registro que nadie
+     purga. Sugerir `resume` + `purge`, sin ejecutarlos por cuenta propia.
 5. **Acciones ofrecidas, todas con OK del usuario:**
    - Preguntar vigencia a la dueña de un 🟢 viejo **de este proyecto**.
    - Pedir a una sesión **sin handoff** que cierre — de cualquier proyecto, porque **la ejecuta ella

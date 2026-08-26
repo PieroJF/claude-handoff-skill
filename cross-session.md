@@ -40,9 +40,14 @@ crítico, siguiente-paso vago. Una petición genérica de contexto devuelve lo q
 ## Formato del inventario de flota
 
 ```
-ESTE PROYECTO (<nombre>)
-  🟢 HO-20260825-landing-1834 · landing · dueña viva (sesion-principal, idle)
-  🟢 HO-20260814-proveedor-pms-1620 · proveedor-pms · dueña MUERTA
+ESTE PROYECTO (sitio-web · /home/usuario/proyectos/wt-sitio-ci)
+  6 handoffs 🟢 sin relevar. Los 5 más recientes:
+    🟢 HO-20260825-landing-1834 · landing · dueña viva (sesion-principal, idle)
+    🟢 HO-20260814-proveedor-pms-1620 · proveedor-pms · dueña MUERTA
+    🟢 HO-20260809-seo-2210     · seo     · dueña MUERTA
+    🟢 HO-20260802-forms-1145   · forms   · sin línea Canal (anterior al formato)
+    🟢 HO-20260728-i18n-0930    · i18n    · dueña MUERTA
+  (+1 más — dilo si quieres la lista completa)
 
 OTROS PROYECTOS (solo lectura · idle y sin 🟢 propio)
   app-reservas-99 [6a13cc] · arrancó 17d
@@ -51,6 +56,14 @@ OTROS PROYECTOS (solo lectura · idle y sin 🟢 propio)
 
 (`idle` = sin turno activo ahora, no = días sin actividad)
 ```
+
+**Cuenta antes de volcar.** Medido en esta máquina: 56 secciones 🟢 repartidas en 13 registros, hasta
+12 en uno solo. Un inventario que las liste todas es ruido. Detalle de los 5 más recientes, total
+arriba, resto bajo petición.
+
+**Agrupa por ruta, no por nombre de proyecto.** Los worktrees declaran el mismo nombre que su repo
+padre: aquí `app-reservas` aparece en `app-reservas/`, `app-reservas-wt-debt/` y `app-reservas-react/`.
+Son tres registros independientes.
 
 ## Formato del aviso a hermanas al cerrar
 
