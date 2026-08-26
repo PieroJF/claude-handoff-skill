@@ -16,7 +16,18 @@
 
 ## [closed-pending] 🟢 {{HO-AAAAMMDD-workstream-HHMM}} — {{workstream}}
 
+> Proyecto: {{NOMBRE_PROYECTO}} · raíz: {{/ruta/absoluta/del/proyecto}}
+> Canal: {{nombre-sesión}} [{{ref}}] · capturado {{AAAA-MM-DD HH:MM}}  (pista — reverificar antes de enviar)
 > Generado: {{YYYY-MM-DD HH:MM}} [estimado]
+
+<!-- La línea "Canal" identifica la sesión que escribió este handoff, tal como la imprime ListAgents.
+     Es OBLIGATORIA: si el canal no está disponible se escribe "> Canal: no disponible", no se omite.
+     Es una PISTA para buscar, no una dirección para enviar — el [ref] es un handle de runtime que
+     puede caducar. Quien releve reverifica contra un ListAgents fresco. -->
+
+<!-- La línea "Proyecto · raíz" es el vínculo de proyecto: la sesión receptora la compara
+     contra su pwd (RECEPCIÓN Paso 0). Si no coincide, para en seco y no consume el handoff. -->
+
 
 ### Estado actual del workstream
 

@@ -1,0 +1,10 @@
+=== rep 1 ===
+=== rep 2 ===
+=== rep 3 ===
+NO LA CONOZCO. No hay ninguna skill llamada "handoff" definida en mi contexto de esta sesión, y prefiero no inventar sus modos.
+NO LA CONOZCO.
+
+No tengo ninguna skill llamada "handoff" definida en mi contexto actual, así que no puedo describir sus modos sin inventarlos. Si existe en tu configuración (por ejemplo en `.claude/skills/` o como slash command), dime dónde está o invócala, y con gusto la reviso y te describo lo que hace.
+NO LA CONOZCO.
+
+No tengo ninguna skill llamada "handoff" definida en mi contexto actual, así que no puedo describir sus modos sin inventarlos. Si es una skill personalizada de tu proyecto (por ejemplo, en `.claude/skills/` o como slash command), dime dónde está o invócala, y con gusto la reviso y te describo lo que hace.

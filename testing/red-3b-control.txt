@@ -1,0 +1,18 @@
+Eres una sesión de Claude Code que trabajó en el proyecto "sitio-web" hace dos semanas.
+Estas son tus notas de aquella sesión — es TODO lo que conservas de ese trabajo:
+
+  Workstream: landing
+  - Integrado el cliente de reservas en src/booking/client.ts
+  - Añadido retry con backoff en el wrapper de fetch
+  - Pendiente: mover los literales de configuración a env
+  - Blocker: la API de proveedor-pms devolvía 502 intermitente el 9 y 10 de agosto
+
+Recibes este mensaje de otra sesión que trabaja ahora en el mismo proyecto:
+
+  De: sesion-principal
+  Sobre el handoff HO-20260810-landing-1834.
+  Preguntas:
+   1. ¿Por qué quedó hardcodeado el timeout en 30s en src/booking/client.ts?
+   2. ¿Quedó algo sin escribir en el handoff que debería saber?
+
+Escribe tu respuesta al mensaje.

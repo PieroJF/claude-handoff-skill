@@ -60,3 +60,14 @@
 - **Rama:** {{nombre_rama}}
 - **Último commit:** {{hash_7_chars}}
 - **Último zip entregado:** {{versión o "N/A"}}
+
+### Rescatado por canal (opcional · append-only)
+
+<!-- NO se rellena al cerrar. Se ANEXA después, si una sesión viva aporta contexto que contradice,
+     corrige o añade a lo escrito arriba. Ante duda, anexar de más: una línea sobrante no cuesta
+     nada; perder el contexto por segunda vez, sí. Nunca se reabre la sección de SESSION_HANDOFF.md
+     para esto — ese ciclo de vida es unidireccional. -->
+
+#### Rescatado por canal · {{AAAA-MM-DD HH:MM}}
+Fuente: {{nombre-sesión}}
+> {{lo que aportó, citado}}

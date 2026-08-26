@@ -40,7 +40,7 @@ sesión. Con varias en paralelo, cada cierre pisa al anterior y se pierde estado
 | **Recepción** | `/handoff resume [código]`, "retoma la sesión", "continúa el workstream X" | Vuelca el detalle del handoff como contexto de arranque y lo transiciona a `[closed] ✅` (tombstone). |
 | **Purga** | `/handoff purge [código]`, "limpia handoffs consumidos" | Borra secciones `[closed] ✅`. **Jamás toca una `[closed-pending] 🟢`.** |
 
-> **Tag en el selector `/resume`:** el cierre imprime un `/rename [closed-pending] <workstream>` listo para pegar, para que la sesión cerrada aparezca tageada en `/resume`. Es manual (el harness no deja renombrar sesiones por hook) y opcional — el estado canónico vive en `SESSION_HANDOFF.md`.
+> **Tag en el selector `/resume`:** el cierre imprime un `/rename [closed] <workstream>` listo para pegar, para que la sesión cerrada aparezca tageada en `/resume`. Tagea directo `[closed]` (no `[closed-pending]`): el `/rename` es manual y único, así que un `[closed-pending]` quedaría stale para siempre. Este `[closed]` del título solo significa "sesión cerrada" y es un eje distinto al `[closed] ✅` del registro (que significa *relevado*). Es manual (el harness no deja renombrar sesiones por hook) y opcional — el estado canónico vive en `SESSION_HANDOFF.md`.
 
 ## Artefactos que produce
 

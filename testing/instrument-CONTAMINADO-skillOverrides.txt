@@ -1,0 +1,9 @@
+Sí, la conozco. Skill `handoff` existe en `~/.claude/skills/handoff/`. Cierra y releva sesiones en proyectos con múltiples workstreams paralelos. Tres modos:
+
+1. **CIERRE** (`/handoff`, "cierra la sesión", "haz el handoff", "wrap up") — genera entrada append-only en `sprint_report.md`, inserta sección codificada `[closed-pending] 🟢` con código único (`HO-AAAAMMDD-<workstream>-HHMM`) en `SESSION_HANDOFF.md` sin sobrescribir secciones de otras sesiones, y produce bloque de relevo copy-paste en chat con vínculo de proyecto (raíz canónica).
+
+2. **RECEPCIÓN** (`/handoff resume [código]`, "retoma la sesión", "relevo de handoff") — Paso 0 obligatorio: verifica que `pwd` coincide con raíz del proyecto del handoff; si no, parada en seco sin consumir. Si coincide: vuelca detalle completo del handoff vivo y lo transiciona a `[closed] ✅` (tombstone de una línea). Sin código: lista handoffs vivos y pregunta cuál.
+
+3. **PURGA** (`/handoff purge [código]`, "limpia handoffs consumidos") — borra solo secciones `[closed] ✅` ya consumidas. Jamás toca una `[closed-pending] 🟢`.
+
+Reglas centrales: `SESSION_HANDOFF.md` es registro aditivo, nunca snapshot sobrescribible; archivos vivos se leen con `cat`, nunca con tool `Read` (hook de claude-mem trunca y devuelve resumen stale); no audita código — eso es `audit-session`.
