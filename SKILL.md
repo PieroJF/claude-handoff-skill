@@ -77,6 +77,33 @@ estado; la etiqueta es su **alias en texto** (grepeable). Transicionan **siempre
 - La etiqueta de estado (`[closed-pending]` / `[closed]`) se antepone al **header** de la
   sección y **no** forma parte del código. El `resume` localiza por código, no por etiqueta.
 
+## El registro puede estar versionado — entonces hay uno por RAMA
+
+`SESSION_HANDOFF.md` suele estar **trackeado en git** (medido: lo está en `servicio-bot` y
+`app-reservas`; no en `PANEL-V5`). Donde lo está, no existe "el registro del proyecto":
+existe **un registro por rama**, y dos sesiones en ramas distintas ven estados distintos sin
+saberlo. Medido en `servicio-bot`: `main` y `chore/laravel-13-upgrade` con 6 tombstones,
+`fix/chatbot-signer-per-tenant` con 5.
+
+**Antes de consumir en cualquier proyecto, comprobar dos cosas:**
+
+```bash
+git ls-files --error-unmatch SESSION_HANDOFF.md   # ¿trackeado?
+git branch --show-current                          # ¿en qué rama estás?
+```
+
+- **No trackeado** → el registro es del working tree. Sin problema de ramas. Sigue.
+- **Trackeado y estás en `main`** → lo normal. Sigue.
+- **Trackeado y estás en una rama de feature** → tus tombstones viven **solo en esa rama**.
+  `main` seguirá mostrando esas secciones 🟢, y otra sesión puede consumirlas otra vez → doble
+  consumo y conflicto al mergear. Deja el cambio del registro en un **commit propio y separado**
+  del trabajo de la rama, para poder cherry-pickearlo a `main` sin arrastrar nada más.
+
+**Nunca cambies de rama para arreglar esto.** Varias sesiones comparten un working tree y un solo
+HEAD: un `git checkout` le mueve el suelo a quien esté trabajando ahí. Si hace falta otra rama,
+es un `git worktree` — y aun así, los contenedores y redes de Docker cuelgan del compose de la
+carpeta original, así que un worktree sirve para editar archivos, no para levantar el stack.
+
 ## Vínculo de proyecto (project binding) — aislamiento cross-proyecto
 
 Cada handoff está **atado a un proyecto concreto**: la **carpeta raíz** donde viven su
@@ -383,6 +410,8 @@ abiertas, cuáles guardan contexto que se perdería, y qué handoffs 🟢 siguen
    **Identifica cada registro por su RUTA, nunca por su nombre de proyecto.** Los worktrees declaran
    el mismo nombre que su repo padre — en esta máquina tres rutas distintas dicen `app-reservas` —
    así que agrupar por nombre mezcla registros que no tienen nada que ver.
+   Anota además si cada registro está **trackeado en git** y en qué rama está su carpeta: donde lo
+   está, el registro es por rama y el inventario de una rama de feature no representa a `main`.
 4. **Cruzar y presentar en dos bloques** (formato en `cross-session.md`).
    **Cuenta primero, vuelca después.** Un proyecto puede acumular decenas de secciones 🟢 sin relevar
    (medido en esta máquina: 65 repartidas en 13 registros, hasta 12 en uno solo). Volcarlas todas
@@ -478,6 +507,8 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 | "Uso `git -C otro-repo` sin cambiar mi cwd, así no cruzo de proyecto" | El cruce lo define **qué repo modificas**, no desde qué carpeta lanzas el comando. `git -C` es el cruce, no su mitigación. |
 | "Espero a que la otra sesión conteste antes de arrancar" | `SendMessage` no es request/response: la respuesta llega en un turno posterior. Esperar cuelga el relevo, que ya tenía todo lo que necesitaba en disco. |
 | "Lleva 17 días idle, es una sesión zombi" | `started 17d ago` es antigüedad de **arranque**, no inactividad. Pudo trabajar hace cinco minutos. El criterio es `idle` + sin 🟢 propio. |
+| "Consumo aquí y ya está, el registro es del proyecto" | Si está trackeado, el registro es **de la rama**. Comprueba `git ls-files` y en qué rama estás antes de consumir. |
+| "Me cambio a main un momento para dejar el registro bien" | Comparten working tree y HEAD. Un `checkout` le mueve el suelo a la sesión que esté trabajando ahí — hay incidentes reales por esto. |
 | "El envío falló con `No agent named X`, luego la sesión murió" | Casi siempre se **renombró**. Los nombres cambian; el `[ref]` persiste. Busca el ref en un `ListAgents` fresco antes de darla por muerta. |
 | "La otra sesión dijo que ya cerró, lo doy por hecho" | Verificar en disco: ¿apareció la sección 🟢? Una respuesta no es prueba de trabajo hecho. |
 | "El usuario ya dijo 'sí a todas', así que enseño los mensajes y los mando en el mismo turno" | Ese sí aprobó **la acción**, no **el texto** que aún no había leído. Enseña y espera. Un OK por lote vale; un OK anticipado al contenido, no. |
@@ -501,6 +532,8 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 - Vas a bloquear un cierre o un relevo esperando que un peer conteste → el canal nunca es bloqueante.
 - Vas a marcar una sesión como zombi por sus días de arranque → ese dato no mide inactividad.
 - Vas a dar por cerrada una sesión remota porque contestó que sí → míralo en su registro.
+- Vas a consumir sin haber comprobado si el registro está trackeado y en qué rama estás → puedes estar escribiendo tombstones que `main` nunca verá.
+- Vas a hacer `git checkout` en una carpeta que comparte working tree con otra sesión → prohibido; es un worktree o nada.
 - Un envío falló y vas a concluir que la sesión murió → busca su `[ref]` en un listado fresco: lo normal es que se haya renombrado.
 
 ## Integración con otras skills
