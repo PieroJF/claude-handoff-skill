@@ -344,8 +344,10 @@ Solo si el Paso 0 pasa, proceder:
      `## [closed] ✅ HO-... — <workstream> · consumido AAAA-MM-DD · detalle en sprint_report.md`.
   6. **Resolver el canal vivo** (opcional, nunca bloqueante). Cargar tools con
      `ToolSearch "select:ListAgents,SendMessage"`; si no cargan, terminar aquí.
-     - **Con línea `Canal:`** → correr `ListAgents` **fresco** y buscar ese nombre. Listada: canal
-       disponible. No listada: canal muerto, se anota y se sigue. Lo grabado es pista, no dirección.
+     - **Con línea `Canal:`** → correr `ListAgents` **fresco** y buscar **por su `[ref]`**, no por
+       el nombre. Medido en producción: los nombres cambian y el ref persiste (`servicio-bot-f0`
+       → `chatbot`, mismo `[fba3e2]`). Si el ref aparece, ese es el canal, aunque se llame distinto.
+       Si el ref tampoco está: canal muerto, se anota y se sigue. Lo grabado es pista, no dirección.
      - **Sin línea `Canal:`** (handoff anterior a este formato) → buscar en `ListAgents` una sesión
        cuyo nombre matchee el proyecto y ofrecerla marcada **NO CONFIRMADA**: puede no ser la que
        escribió el handoff. Nunca se rellena esa línea en la sección ajena (regla dura 5).
@@ -476,6 +478,7 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 | "Uso `git -C otro-repo` sin cambiar mi cwd, así no cruzo de proyecto" | El cruce lo define **qué repo modificas**, no desde qué carpeta lanzas el comando. `git -C` es el cruce, no su mitigación. |
 | "Espero a que la otra sesión conteste antes de arrancar" | `SendMessage` no es request/response: la respuesta llega en un turno posterior. Esperar cuelga el relevo, que ya tenía todo lo que necesitaba en disco. |
 | "Lleva 17 días idle, es una sesión zombi" | `started 17d ago` es antigüedad de **arranque**, no inactividad. Pudo trabajar hace cinco minutos. El criterio es `idle` + sin 🟢 propio. |
+| "El envío falló con `No agent named X`, luego la sesión murió" | Casi siempre se **renombró**. Los nombres cambian; el `[ref]` persiste. Busca el ref en un `ListAgents` fresco antes de darla por muerta. |
 | "La otra sesión dijo que ya cerró, lo doy por hecho" | Verificar en disco: ¿apareció la sección 🟢? Una respuesta no es prueba de trabajo hecho. |
 | "El usuario ya dijo 'sí a todas', así que enseño los mensajes y los mando en el mismo turno" | Ese sí aprobó **la acción**, no **el texto** que aún no había leído. Enseña y espera. Un OK por lote vale; un OK anticipado al contenido, no. |
 
@@ -498,6 +501,7 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 - Vas a bloquear un cierre o un relevo esperando que un peer conteste → el canal nunca es bloqueante.
 - Vas a marcar una sesión como zombi por sus días de arranque → ese dato no mide inactividad.
 - Vas a dar por cerrada una sesión remota porque contestó que sí → míralo en su registro.
+- Un envío falló y vas a concluir que la sesión murió → busca su `[ref]` en un listado fresco: lo normal es que se haya renombrado.
 
 ## Integración con otras skills
 

@@ -14,8 +14,8 @@ No se deducen: se midieron. Un diseño que los ignore falla en silencio.
 | `ListAgents` da nombre, `[ref]`, tipo y estado — **no da cwd** | El proyecto de un peer solo se infiere por nombre. Mostrar siempre la lista completa |
 | `started 17d ago` es antigüedad de **arranque**, no tiempo inactivo | No existe el dato "días sin actividad". Un umbral en días sería inventado |
 | `idle` = sin turno activo ahora mismo | Una sesión en uso aparece `idle` entre mensaje y mensaje |
-| El `[ref]` es un handle de runtime sin persistencia garantizada | Lo grabado es pista. El nombre pelado es la dirección; el `[ref]` solo desambigua |
-| Nombres distintos (`app-reservas-99` vs `-18`) **no colisionan** | El `[ref]` hace falta solo si dos filas comparten nombre exacto |
+| **El `[ref]` persiste; el NOMBRE es volátil** (medido en producción 2026-08-27) | Resolver por `[ref]`, no por nombre. Lo contrario falla en silencio |
+| Un envío al nombre viejo devuelve `No agent named 'X' is reachable` | No es prueba de que la sesión murió: puede haberse renombrado. Reverificar antes de concluir |
 | `SendMessage` / `ListAgents` pueden llegar **deferred** | Cargar con `ToolSearch "select:ListAgents,SendMessage"` antes de usarlas |
 | `notify_when_idle` es one-shot, solo main conversation, **solo local** | Sirve para saber cuándo mirar. No prueba que el trabajo se hiciera |
 | Los `SESSION_HANDOFF.md` **declaran su proyecto y raíz** | El descubrimiento cross-proyecto no necesita un mapa nombre→ruta |
@@ -90,10 +90,26 @@ una línea sobrante no cuesta nada; perder el contexto otra vez, sí.
 | Síntoma | Causa | Qué hacer |
 |---|---|---|
 | `InputValidationError` al llamar `ListAgents` o `SendMessage` | tool deferred, esquema sin cargar | `ToolSearch "select:ListAgents,SendMessage"` |
-| El nombre no resuelve | sesión muerta, o nombre reciclado por una más nueva | canal muerto: seguir con disco, anotarlo |
+| El nombre no resuelve | **casi siempre la sesión se renombró**, no murió | `ListAgents` fresco y buscar su `[ref]`. Solo si el ref tampoco aparece, la sesión murió |
+| Dos filas comparten nombre | nombres duplicados tras renombres | usar `nombre [ref]` del listado recién leído |
 | Error pidiendo desambiguar | dos filas con el mismo nombre exacto | añadir el ` [ref]` del listado **recién leído** |
 | No llega respuesta | peer `busy`, o ignoró el mensaje | no reintentar, no bloquear. El relevo no depende de ello |
 | Aparecen sesiones que no reconoces | procesos `claude -p` efímeros registrados como peers | no son sesiones de trabajo: no pedirles cierre |
+
+### Renombres: medido en producción
+
+En una sola jornada, cuatro sesiones cambiaron de nombre conservando su `[ref]`:
+
+```
+servicio-bot-f0    → chatbot        [fba3e2]
+panel-v5-e2        → panel-v5    [0f46e7]
+sitio-web-prod-53 → sitio-web        [870973]
+cowork-09      → cowork         [6f09fb]
+```
+
+Un handoff que grabó `Canal: servicio-bot-f0` y resuelve por nombre falla y parece sesión
+muerta. Resolviendo por `[fba3e2]` la encuentra. **El ref es el identificador; el nombre, una
+etiqueta que el usuario cambia.**
 
 ## Instrumento de aislamiento para testear esta skill
 
