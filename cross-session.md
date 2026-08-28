@@ -101,10 +101,10 @@ una línea sobrante no cuesta nada; perder el contexto otra vez, sí.
 En una sola jornada, cuatro sesiones cambiaron de nombre conservando su `[ref]`:
 
 ```
-servicio-bot-f0    → chatbot        [fba3e2]
-panel-v5-e2        → panel-v5    [0f46e7]
-sitio-web-prod-53 → sitio-web        [870973]
-cowork-09      → cowork         [6f09fb]
+servicio-bot-f0      → bot        [fba3e2]
+panel-v5-e2          → panel      [0f46e7]
+sitio-web-prod-53    → web        [870973]
+cowork-09            → cowork     [6f09fb]
 ```
 
 Un handoff que grabó `Canal: servicio-bot-f0` y resuelve por nombre falla y parece sesión
