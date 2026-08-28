@@ -243,6 +243,9 @@ clasificar mal un archivo como legacy, o sobrescribir handoffs vivos ajenos).
    (formato legacy, snapshot viejo): su contenido previo es un handoff sin codificar. Convertirlo
    en **una** sección `[closed-pending] 🟢` con código `HO-AAAAMMDD-legacy-HHMM` bajo el header
    nuevo. NO descartar ese contenido.
+   **Y crea también su entrada en `sprint_report.md` con ese mismo código**, con el cuerpo legacy
+   dentro. Si no, esa sección queda sin detalle al que apuntar y el `resume` que la consuma
+   producirá un tombstone huérfano.
    **La detección se ancla en el emoji (🟢|✅) y tolera la etiqueta de texto opcional antes de él.**
    Un archivo cuyas secciones ya llevan `[closed-pending]`/`[closed]` NO es legacy — nunca lo
    re-envuelvas.
@@ -366,6 +369,14 @@ Solo si el Paso 0 pasa, proceder:
   2. Si no existe o ya está `[closed] ✅`: avisar claramente. NO alucinar contenido, NO inventar un handoff.
   3. Volcar el detalle completo de la sección como contexto de arranque de la nueva sesión.
   4. Leer también (con `cat`, no `Read`) la entrada de `sprint_report.md` con ese código y `AUDIT_LOG.md` si existe.
+  4.5 **Comprobar que el tombstone apuntará a algo real.** El tombstone dice "detalle en
+     `sprint_report.md`", así que antes de colapsar: `grep <código> sprint_report.md`.
+     **Si no hay entrada** — típico de las secciones migradas desde formato legacy por el Paso 4.2
+     de CIERRE, que crea la sección pero no su entrada — **añade primero el cuerpo literal de la
+     sección a `sprint_report.md`** (append, sin tocar nada previo) y colapsa después. Colapsar sin
+     esto deja un tombstone que apunta a un detalle inexistente: el contenido se pierde de verdad,
+     que es exactamente lo que esta skill existe para impedir. Medido en `servicio-bot`:
+     `HO-20260517-legacy-1720` tenía 0 coincidencias en `sprint_report.md`.
   5. **Transicionar la sección `[closed-pending] 🟢 → [closed] ✅` (etiqueta y emoji a la vez) y
      colapsar su cuerpo a tombstone** de una línea:
      `## [closed] ✅ HO-... — <workstream> · consumido AAAA-MM-DD · detalle en sprint_report.md`.
@@ -507,6 +518,7 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 | "Uso `git -C otro-repo` sin cambiar mi cwd, así no cruzo de proyecto" | El cruce lo define **qué repo modificas**, no desde qué carpeta lanzas el comando. `git -C` es el cruce, no su mitigación. |
 | "Espero a que la otra sesión conteste antes de arrancar" | `SendMessage` no es request/response: la respuesta llega en un turno posterior. Esperar cuelga el relevo, que ya tenía todo lo que necesitaba en disco. |
 | "Lleva 17 días idle, es una sesión zombi" | `started 17d ago` es antigüedad de **arranque**, no inactividad. Pudo trabajar hace cinco minutos. El criterio es `idle` + sin 🟢 propio. |
+| "Colapso a tombstone; el detalle queda en sprint_report" | Solo si esa entrada existe. Las secciones migradas desde legacy no la tienen: el tombstone apuntaría a nada. `grep` el código antes de colapsar. |
 | "Consumo aquí y ya está, el registro es del proyecto" | Si está trackeado, el registro es **de la rama**. Comprueba `git ls-files` y en qué rama estás antes de consumir. |
 | "Me cambio a main un momento para dejar el registro bien" | Comparten working tree y HEAD. Un `checkout` le mueve el suelo a la sesión que esté trabajando ahí — hay incidentes reales por esto. |
 | "El envío falló con `No agent named X`, luego la sesión murió" | Casi siempre se **renombró**. Los nombres cambian; el `[ref]` persiste. Busca el ref en un `ListAgents` fresco antes de darla por muerta. |
@@ -532,6 +544,7 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 - Vas a bloquear un cierre o un relevo esperando que un peer conteste → el canal nunca es bloqueante.
 - Vas a marcar una sesión como zombi por sus días de arranque → ese dato no mide inactividad.
 - Vas a dar por cerrada una sesión remota porque contestó que sí → míralo en su registro.
+- Vas a colapsar una sección sin haber comprobado que su código aparece en `sprint_report.md` → tombstone huérfano, pérdida real.
 - Vas a consumir sin haber comprobado si el registro está trackeado y en qué rama estás → puedes estar escribiendo tombstones que `main` nunca verá.
 - Vas a hacer `git checkout` en una carpeta que comparte working tree con otra sesión → prohibido; es un worktree o nada.
 - Un envío falló y vas a concluir que la sesión murió → busca su `[ref]` en un listado fresco: lo normal es que se haya renombrado.
