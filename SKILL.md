@@ -392,6 +392,14 @@ Solo si el Paso 0 pasa, proceder:
      - **Sin línea `Canal:`** (handoff anterior a este formato) → buscar en `ListAgents` una sesión
        cuyo nombre matchee el proyecto y ofrecerla marcada **NO CONFIRMADA**: puede no ser la que
        escribió el handoff. Nunca se rellena esa línea en la sección ajena (regla dura 5).
+     - **MEDIR el siguiente-paso antes de tratarlo como pendiente.** Un handoff declara el estado
+       del día en que se cerró, no el de hoy: el trabajo pudo hacerse después sin que nadie volviera
+       a tocar la sección. Antes de trasladar un pendiente a `PENDIENTES.md` o de arrancarlo,
+       compruébalo contra el código — que el archivo exista, que la función esté, que el commit sea
+       ancestro de la rama. **Medido dos veces en el mismo proyecto:** un plan de 9 tareas declarado
+       pendiente estaba entero en producción, y un cluster de 8 secciones declaraba trabajo que ya
+       llevaba dos meses en `main`. Copiar un siguiente-paso sin medirlo produce un documento que
+       nace mintiendo, y alguien reconstruye lo que ya existe.
      - **Preguntar solo por huecos concretos:** campos `[no verificado]`, `N/A` en algo crítico,
        siguiente-paso vago. Una petición genérica de contexto devuelve lo que ya está en el archivo.
        Enviar solo con OK del usuario. Formato en `cross-session.md`.
@@ -525,6 +533,8 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 | "Consumo aquí y ya está, el registro es del proyecto" | Si está trackeado, el registro es **de la rama**. Comprueba `git ls-files` y en qué rama estás antes de consumir. |
 | "Me cambio a main un momento para dejar el registro bien" | Comparten working tree y HEAD. Un `checkout` le mueve el suelo a la sesión que esté trabajando ahí — hay incidentes reales por esto. |
 | "El envío falló con `No agent named X`, luego la sesión murió" | Puede haberse **renombrado**. Busca también por `[ref]` en un `ListAgents` fresco antes de darla por muerta. |
+| "El handoff dice que esto queda pendiente, así que lo es" | Dice lo que quedaba pendiente **el día del cierre**. Mídelo contra el código antes de creerlo: medido, un plan de 9 tareas "pendiente" estaba entero en producción. |
+| "Lo traslado a PENDIENTES tal cual, ya se verificará al ejecutarlo" | Un PENDIENTES que nace mintiendo hace reconstruir trabajo hecho. Verificar cuesta un `grep`; rehacer 9 tareas, no. |
 | "El nombre coincide con el del handoff, así que es la dueña" | Los nombres se reciclan: medido, mismo nombre apuntando a una sesión distinta tres días después. Confírmalo preguntándole si conoce el código. |
 | "La otra sesión dijo que ya cerró, lo doy por hecho" | Verificar en disco: ¿apareció la sección 🟢? Una respuesta no es prueba de trabajo hecho. |
 | "El usuario ya dijo 'sí a todas', así que enseño los mensajes y los mando en el mismo turno" | Ese sí aprobó **la acción**, no **el texto** que aún no había leído. Enseña y espera. Un OK por lote vale; un OK anticipado al contenido, no. |
@@ -548,6 +558,7 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 - Vas a bloquear un cierre o un relevo esperando que un peer conteste → el canal nunca es bloqueante.
 - Vas a marcar una sesión como zombi por sus días de arranque → ese dato no mide inactividad.
 - Vas a dar por cerrada una sesión remota porque contestó que sí → míralo en su registro.
+- Vas a copiar un siguiente-paso a una lista de pendientes sin haberlo comprobado contra el código → mide primero; los handoffs envejecen y nadie vuelve a marcarlos.
 - Vas a colapsar una sección sin haber comprobado que su código aparece en `sprint_report.md` → tombstone huérfano, pérdida real.
 - Vas a consumir sin haber comprobado si el registro está trackeado y en qué rama estás → puedes estar escribiendo tombstones que `main` nunca verá.
 - Vas a hacer `git checkout` en una carpeta que comparte working tree con otra sesión → prohibido; es un worktree o nada.
