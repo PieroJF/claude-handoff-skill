@@ -82,8 +82,8 @@ estado; la etiqueta es su **alias en texto** (grepeable). Transicionan **siempre
 `SESSION_HANDOFF.md` suele estar **trackeado en git** (medido: lo está en `servicio-bot` y
 `app-reservas`; no en `PANEL-V5`). Donde lo está, no existe "el registro del proyecto":
 existe **un registro por rama**, y dos sesiones en ramas distintas ven estados distintos sin
-saberlo. Medido en `servicio-bot`: `main` y `chore/laravel-13-upgrade` con 6 tombstones,
-`fix/chatbot-signer-per-tenant` con 5.
+saberlo. Medido en `servicio-bot`: `main` y `chore/upgrade-framework` con 6 tombstones,
+`fix/firma-por-tenant` con 5.
 
 **Antes de consumir en cualquier proyecto, comprobar dos cosas:**
 
