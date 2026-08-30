@@ -14,7 +14,7 @@ No se deducen: se midieron. Un diseño que los ignore falla en silencio.
 | `ListAgents` da nombre, `[ref]`, tipo y estado — **no da cwd** | El proyecto de un peer solo se infiere por nombre. Mostrar siempre la lista completa |
 | `started 17d ago` es antigüedad de **arranque**, no tiempo inactivo | No existe el dato "días sin actividad". Un umbral en días sería inventado |
 | `idle` = sin turno activo ahora mismo | Una sesión en uso aparece `idle` entre mensaje y mensaje |
-| **El `[ref]` persiste; el NOMBRE es volátil** (medido en producción 2026-08-27) | Resolver por `[ref]`, no por nombre. Lo contrario falla en silencio |
+| **Ni el nombre ni el `[ref]` identifican de forma estable en el tiempo** (medido dos veces) | El canal grabado es una pista efímera, no una identidad. Confirmar con la propia sesión antes de tratarla como la dueña |
 | Un envío al nombre viejo devuelve `No agent named 'X' is reachable` | No es prueba de que la sesión murió: puede haberse renombrado. Reverificar antes de concluir |
 | `SendMessage` / `ListAgents` pueden llegar **deferred** | Cargar con `ToolSearch "select:ListAgents,SendMessage"` antes de usarlas |
 | `notify_when_idle` es one-shot, solo main conversation, **solo local** | Sirve para saber cuándo mirar. No prueba que el trabajo se hiciera |
@@ -96,9 +96,9 @@ una línea sobrante no cuesta nada; perder el contexto otra vez, sí.
 | No llega respuesta | peer `busy`, o ignoró el mensaje | no reintentar, no bloquear. El relevo no depende de ello |
 | Aparecen sesiones que no reconoces | procesos `claude -p` efímeros registrados como peers | no son sesiones de trabajo: no pedirles cierre |
 
-### Renombres: medido en producción
+### Identidad de sesión: medido dos veces, en direcciones opuestas
 
-En una sola jornada, cuatro sesiones cambiaron de nombre conservando su `[ref]`:
+**2026-08-27 — el nombre cambia, el ref persiste.** Cuatro sesiones renombradas, mismo `[ref]`:
 
 ```
 servicio-bot-f0      → bot        [fba3e2]
@@ -107,9 +107,28 @@ sitio-web-prod-53    → web        [870973]
 cowork-09            → cowork     [6f09fb]
 ```
 
-Un handoff que grabó `Canal: servicio-bot-f0` y resuelve por nombre falla y parece sesión
-muerta. Resolviendo por `[fba3e2]` la encuentra. **El ref es el identificador; el nombre, una
-etiqueta que el usuario cambia.**
+Un handoff que grabó `Canal: servicio-bot-f0` y resuelve por nombre falla y parece sesión muerta.
+Resolviendo por `[fba3e2]` la encuentra.
+
+**2026-08-30 — el nombre persiste, el ref cambia.** Tres días después, la flota se renovó y
+apareció el caso inverso:
+
+```
+cowork  [6f09fb]  →  cowork  [2396ec]     mismo nombre, sesión DISTINTA
+bot     [fba3e2]  →  bot new [a257f8]     nombre y ref, ambos distintos
+panel   [0f46e7]  →  panel new [099d3d]   nombre y ref, ambos distintos
+```
+
+**Conclusión: ninguno de los dos es un identificador estable.** Resolver por ref habría fallado;
+resolver por nombre habría acertado la dirección y escrito a **otra sesión** que no sabe nada del
+handoff. Por eso:
+
+- La línea `Canal:` sirve **mientras la sesión siga viva**; pasadas horas, resolverla es una apuesta.
+- Resuelve siempre contra un `ListAgents` **de este turno**, nunca contra lo grabado.
+- Si el handoff es de hace más de unas horas, **confirma la identidad preguntando** antes de tratarla
+  como la dueña: "¿trabajas en el proyecto X? ¿ves el código HO-… en tu registro?". Una sesión que
+  heredó el nombre responderá que no.
+- Y si no lo confirma, no pasa nada: el disco ya tenía todo lo necesario. El canal es oportunista.
 
 ## Instrumento de aislamiento para testear esta skill
 
