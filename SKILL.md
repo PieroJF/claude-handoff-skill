@@ -382,10 +382,13 @@ Solo si el Paso 0 pasa, proceder:
      `## [closed] ✅ HO-... — <workstream> · consumido AAAA-MM-DD · detalle en sprint_report.md`.
   6. **Resolver el canal vivo** (opcional, nunca bloqueante). Cargar tools con
      `ToolSearch "select:ListAgents,SendMessage"`; si no cargan, terminar aquí.
-     - **Con línea `Canal:`** → correr `ListAgents` **fresco** y buscar **por su `[ref]`**, no por
-       el nombre. Medido en producción: los nombres cambian y el ref persiste (`servicio-bot-f0`
-       → `chatbot`, mismo `[fba3e2]`). Si el ref aparece, ese es el canal, aunque se llame distinto.
-       Si el ref tampoco está: canal muerto, se anota y se sigue. Lo grabado es pista, no dirección.
+     - **Con línea `Canal:`** → correr `ListAgents` **fresco** y buscar tanto por `[ref]` como por
+       nombre. **Ninguno de los dos es estable en el tiempo** (medido dos veces, en direcciones
+       opuestas: un día cambian los nombres conservando el ref; tres días después un nombre
+       sobrevive apuntando a una sesión **distinta**). Si el handoff tiene más de unas horas,
+       **confirma la identidad preguntando** antes de tratarla como la dueña — una sesión que
+       heredó el nombre dirá que no conoce ese código. Si no aparece o no lo confirma: canal
+       muerto, se anota y se sigue. Lo grabado es pista, no dirección.
      - **Sin línea `Canal:`** (handoff anterior a este formato) → buscar en `ListAgents` una sesión
        cuyo nombre matchee el proyecto y ofrecerla marcada **NO CONFIRMADA**: puede no ser la que
        escribió el handoff. Nunca se rellena esa línea en la sección ajena (regla dura 5).
@@ -521,7 +524,8 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 | "Colapso a tombstone; el detalle queda en sprint_report" | Solo si esa entrada existe. Las secciones migradas desde legacy no la tienen: el tombstone apuntaría a nada. `grep` el código antes de colapsar. |
 | "Consumo aquí y ya está, el registro es del proyecto" | Si está trackeado, el registro es **de la rama**. Comprueba `git ls-files` y en qué rama estás antes de consumir. |
 | "Me cambio a main un momento para dejar el registro bien" | Comparten working tree y HEAD. Un `checkout` le mueve el suelo a la sesión que esté trabajando ahí — hay incidentes reales por esto. |
-| "El envío falló con `No agent named X`, luego la sesión murió" | Casi siempre se **renombró**. Los nombres cambian; el `[ref]` persiste. Busca el ref en un `ListAgents` fresco antes de darla por muerta. |
+| "El envío falló con `No agent named X`, luego la sesión murió" | Puede haberse **renombrado**. Busca también por `[ref]` en un `ListAgents` fresco antes de darla por muerta. |
+| "El nombre coincide con el del handoff, así que es la dueña" | Los nombres se reciclan: medido, mismo nombre apuntando a una sesión distinta tres días después. Confírmalo preguntándole si conoce el código. |
 | "La otra sesión dijo que ya cerró, lo doy por hecho" | Verificar en disco: ¿apareció la sección 🟢? Una respuesta no es prueba de trabajo hecho. |
 | "El usuario ya dijo 'sí a todas', así que enseño los mensajes y los mando en el mismo turno" | Ese sí aprobó **la acción**, no **el texto** que aún no había leído. Enseña y espera. Un OK por lote vale; un OK anticipado al contenido, no. |
 
