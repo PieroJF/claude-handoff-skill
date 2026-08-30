@@ -458,6 +458,27 @@ abiertas, cuáles guardan contexto que se perdería, y qué handoffs 🟢 siguen
 **No todo lo listado es una sesión de trabajo.** Un `claude -p` lanzado desde otra sesión aparece
 como peer. No pedirle cierre a un proceso efímero.
 
+### Qué puede afirmar quien coordina
+
+Diagnosticar es global, actuar es local — y **afirmar sobre contenido también es local**. Quien
+coordina desde fuera ve los registros, no el código: puede medir estructura (SHAs y ancestría,
+ramas, tracking en git, duplicados entre registros, estado de la flota) y **no** puede medir si lo
+que un handoff declara pendiente sigue siéndolo. Eso solo lo comprueba quien está dentro del
+proyecto, con un `ls` o un `grep` en su propio árbol.
+
+De ahí el reparto:
+
+| Quien coordina | Quien está dentro |
+|---|---|
+| Procedimiento, orden de consumo, turnos entre sesiones | Qué sigue vivo y qué ya está hecho |
+| Lo cruzado: ancestría, duplicados, flota, tracking | Lo local: existe el archivo, está la función, corre el test |
+
+**Todo lo que el coordinador aporte va etiquetado y separado:** `VERIFICADO` (y con qué comando)
+frente a `HIPÓTESIS — contrástala`. Nunca en la misma frase, nunca sin etiqueta. Medido: una
+hipótesis marcada como tal fue contrastada y corregida por la sesión de dentro; la misma clase de
+afirmación dada por hecho se propagó hasta que la cazaron por su cuenta — y habría hecho reconstruir
+un plan de 9 tareas que ya estaba en producción.
+
 ---
 
 # MODO PURGA — `/handoff purge [código]`
@@ -533,6 +554,7 @@ Capturadas en testing baseline. Si te descubres pensando alguna, PARA y sigue la
 | "Consumo aquí y ya está, el registro es del proyecto" | Si está trackeado, el registro es **de la rama**. Comprueba `git ls-files` y en qué rama estás antes de consumir. |
 | "Me cambio a main un momento para dejar el registro bien" | Comparten working tree y HEAD. Un `checkout` le mueve el suelo a la sesión que esté trabajando ahí — hay incidentes reales por esto. |
 | "El envío falló con `No agent named X`, luego la sesión murió" | Puede haberse **renombrado**. Busca también por `[ref]` en un `ListAgents` fresco antes de darla por muerta. |
+| "Coordino, así que le digo lo que tiene pendiente" | Desde fuera ves registros, no código. Da el procedimiento; el contenido lo mide quien está dentro. |
 | "El handoff dice que esto queda pendiente, así que lo es" | Dice lo que quedaba pendiente **el día del cierre**. Mídelo contra el código antes de creerlo: medido, un plan de 9 tareas "pendiente" estaba entero en producción. |
 | "Lo traslado a PENDIENTES tal cual, ya se verificará al ejecutarlo" | Un PENDIENTES que nace mintiendo hace reconstruir trabajo hecho. Verificar cuesta un `grep`; rehacer 9 tareas, no. |
 | "El nombre coincide con el del handoff, así que es la dueña" | Los nombres se reciclan: medido, mismo nombre apuntando a una sesión distinta tres días después. Confírmalo preguntándole si conoce el código. |
