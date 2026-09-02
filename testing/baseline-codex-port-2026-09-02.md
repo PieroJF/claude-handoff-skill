@@ -23,7 +23,7 @@ test_rejects_wrong_project_root (...) ... FAIL
 
 AssertionError: scripts.handoff_registry is not implemented; Task 6 must provide the shared registry API.
 
-Ran 9 tests in 0.015s
+Ran 9 tests in 0.016s
 
 FAILED (failures=9)
 ```
@@ -31,3 +31,17 @@ FAILED (failures=9)
 The explicit repository change makes the command reproducible from any caller directory. The
 missing module is guarded deliberately, so each contract fails as an assertion instead of producing
 a collection/import error. The run had nine failures, zero errors, and zero skips.
+
+## Approved concurrency lock contract
+
+`test_concurrent_inserts_keep_both_sections` uses two independently terminable OS processes and
+holds the public sibling sidecar before releasing both writers together. Its lock target is exactly
+`<registry filename>.lock`; therefore the canonical `SESSION_HANDOFF.md` registry uses
+`SESSION_HANDOFF.md.lock`.
+
+The sidecar is stable across `os.replace`: the registry path is replaced with each atomic snapshot,
+while `SESSION_HANDOFF.md.lock` remains the same lock identity for the complete read, validation,
+mutation, flush, and replacement critical section. A process-local lock or no interprocess lock
+allows a writer to finish while the parent holds this sidecar and fails the contract. The workers
+are joined with bounded cleanup, terminated if needed, and must report clean exit statuses and two
+surviving distinct sections after release.

@@ -37,38 +37,27 @@ except ModuleNotFoundError as error:
 
 
 @contextmanager
-def _hold_registry_locks(registry: Path):
-    lock_paths = (registry, registry.with_name(f"{registry.name}.lock"))
-    handles = []
-    try:
-        for lock_path in lock_paths:
-            lock_path.touch(exist_ok=True)
-            handles.append(lock_path.open("r+b"))
+def _hold_sidecar_lock(sidecar: Path):
+    sidecar.touch(exist_ok=True)
+    with sidecar.open("r+b") as handle:
         if os.name == "nt":
             import msvcrt
 
-            for handle in handles:
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
             try:
                 yield
             finally:
-                for handle in reversed(handles):
-                    handle.seek(0)
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
         else:
             import fcntl
 
-            for handle in handles:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             try:
                 yield
             finally:
-                for handle in reversed(handles):
-                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-    finally:
-        for handle in reversed(handles):
-            handle.close()
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _insert_in_independent_process(
@@ -394,9 +383,11 @@ class HandoffRegistryTests(unittest.TestCase):
             )
             for section_file in (first_section, second_section)
         ]
+        lock_sidecar = self.registry.with_name(f"{self.registry.name}.lock")
+        self.assertEqual(lock_sidecar.name, "SESSION_HANDOFF.md.lock")
 
         try:
-            with _hold_registry_locks(self.registry):
+            with _hold_sidecar_lock(lock_sidecar):
                 for process in processes:
                     process.start()
                 ready_processes = self._receive_messages(
@@ -416,7 +407,7 @@ class HandoffRegistryTests(unittest.TestCase):
                     early_outcome = None
                 self.assertIsNone(
                     early_outcome,
-                    "a writer completed while another process held the registry lock",
+                    "a writer completed while another process held the public lock sidecar",
                 )
                 self.assertEqual(self.registry.read_bytes(), concurrent_header)
 
