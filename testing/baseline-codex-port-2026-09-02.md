@@ -3,6 +3,7 @@
 ## Exact command
 
 ```powershell
+Set-Location -LiteralPath 'C:\Users\Piero\.agents\skills\handoff'
 $env:PYTHONDONTWRITEBYTECODE = '1'
 python -m unittest discover -s 'C:\Users\Piero\.agents\skills\handoff\tests' -v
 ```
@@ -22,10 +23,11 @@ test_rejects_wrong_project_root (...) ... FAIL
 
 AssertionError: scripts.handoff_registry is not implemented; Task 6 must provide the shared registry API.
 
-Ran 9 tests in 0.013s
+Ran 9 tests in 0.015s
 
 FAILED (failures=9)
 ```
 
-The missing module is guarded deliberately, so each contract fails as an assertion instead of
-producing a collection/import error. The run had nine failures, zero errors, and zero skips.
+The explicit repository change makes the command reproducible from any caller directory. The
+missing module is guarded deliberately, so each contract fails as an assertion instead of producing
+a collection/import error. The run had nine failures, zero errors, and zero skips.
