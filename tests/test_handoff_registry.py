@@ -224,6 +224,17 @@ class HandoffRegistryTests(unittest.TestCase):
         )
         return section
 
+    def _write_unterminated_fence_registry(self, opener: str = "```markdown") -> bytes:
+        registry_bytes = (
+            self.REGISTRY_HEADER
+            + self.ALPHA_LIVE_SECTION
+            + f"{opener}\n".encode("utf-8")
+            + self.BETA_LIVE_SECTION
+            + self.ARCHIVE_TOMBSTONE
+        )
+        self.registry.write_bytes(registry_bytes)
+        return registry_bytes
+
     def test_lists_only_live_sections(self):
         self._require_implementation()
         self._assert_registry_fixture_bytes()
@@ -337,6 +348,52 @@ class HandoffRegistryTests(unittest.TestCase):
             + self.ARCHIVE_TOMBSTONE,
         )
 
+    def test_unterminated_fences_fail_closed_when_listing(self):
+        self._require_implementation()
+
+        for opener in ("```markdown", "~~~markdown"):
+            with self.subTest(opener=opener):
+                original_bytes = self._write_unterminated_fence_registry(opener)
+
+                with self.assertRaises(RegistryError):
+                    list_live(self.registry, self.ALPHA_ROOT)
+
+                self.assertEqual(self.registry.read_bytes(), original_bytes)
+
+    def test_insert_rejects_registry_with_unterminated_fence(self):
+        self._require_implementation()
+        original_bytes = self._write_unterminated_fence_registry()
+        section = self._write_live_section(
+            "after-open-fence.md",
+            "HO-20260902-after-open-fence-1203",
+            "after-open-fence",
+            self.ALPHA_ROOT,
+            "Never append this section inside an open fence.",
+        )
+
+        with self.assertRaises(RegistryError):
+            insert_section(self.registry, section, self.ALPHA_ROOT)
+
+        self.assertEqual(self.registry.read_bytes(), original_bytes)
+
+    def test_consume_rejects_registry_with_unterminated_fence(self):
+        self._require_implementation()
+        original_bytes = self._write_unterminated_fence_registry()
+
+        with self.assertRaises(RegistryError):
+            consume(self.registry, self.ALPHA_CODE, self.ALPHA_ROOT, date(2026, 9, 2))
+
+        self.assertEqual(self.registry.read_bytes(), original_bytes)
+
+    def test_purge_rejects_registry_with_unterminated_fence(self):
+        self._require_implementation()
+        original_bytes = self._write_unterminated_fence_registry("~~~markdown")
+
+        with self.assertRaises(RegistryError):
+            purge(self.registry, self.ALPHA_ROOT)
+
+        self.assertEqual(self.registry.read_bytes(), original_bytes)
+
     def test_rejects_handoff_headers_without_paired_state_tokens(self):
         self._require_implementation()
         malformed_headers = (
@@ -348,6 +405,17 @@ class HandoffRegistryTests(unittest.TestCase):
         for header in malformed_headers:
             with self.subTest(header=header):
                 self.registry.write_text(f"# Registry\n\n{header}\n", encoding="utf-8")
+                with self.assertRaises(RegistryError):
+                    list_live(self.registry, self.ALPHA_ROOT)
+
+    def test_rejects_handoff_headers_with_unicode_whitespace(self):
+        self._require_implementation()
+
+        for separator in ("\u00a0", "\u2003"):
+            with self.subTest(separator=repr(separator)):
+                header = f"## 🟢{separator}HO-20260902-unicode-space-1204 — hidden"
+                self.registry.write_text(f"# Registry\n\n{header}\n", encoding="utf-8")
+
                 with self.assertRaises(RegistryError):
                     list_live(self.registry, self.ALPHA_ROOT)
 
@@ -491,6 +559,21 @@ class HandoffRegistryTests(unittest.TestCase):
             append_report(report, entry_alias)
 
         self.assertEqual(report.read_bytes(), self.REPORT_EXISTING_BYTES)
+
+    def test_append_report_rejects_multiply_linked_report_target(self):
+        self._require_implementation()
+        report = self.workdir / "canonical-report.md"
+        report.write_bytes(self.REPORT_EXISTING_BYTES)
+        report_alias = self.workdir / "report-target-hardlink.md"
+        os.link(report, report_alias)
+        entry = self.workdir / "independent-report-entry.md"
+        entry.write_bytes(self.REPORT_APPEND_ENTRY_BYTES)
+
+        with self.assertRaises(RegistryError):
+            append_report(report_alias, entry)
+
+        self.assertEqual(report.read_bytes(), self.REPORT_EXISTING_BYTES)
+        self.assertEqual(report_alias.read_bytes(), self.REPORT_EXISTING_BYTES)
 
     def test_concurrent_inserts_keep_both_sections(self):
         self._require_implementation()

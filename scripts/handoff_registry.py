@@ -52,7 +52,7 @@ _PROJECT_ROOT_LINE = re.compile(
     r"> Proyecto: (?P<project>.+?) · raíz: (?P<root>[^\r\n]+)"
 )
 _FENCE_OPEN = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
-_HANDOFF_CODE = re.compile(r"(?:^|[ \t])HO-[^ \t\r\n]+")
+_HANDOFF_CODE = re.compile(r"(?:^|\s)HO-\S+")
 _VALID_STATES = {
     ("closed-pending", "🟢"): "live",
     ("closed", "✅"): "closed",
@@ -89,6 +89,8 @@ def _outside_fence_lines(text: str) -> list[_MarkdownLine]:
             else:
                 lines.append(_MarkdownLine(offset, offset + len(raw_line), line))
         offset += len(raw_line)
+    if fence is not None:
+        raise RegistryError(f"Unterminated fenced code block opened with '{fence}'.")
     return lines
 
 
@@ -376,6 +378,8 @@ def insert_section(registry: Path, section_file: Path, project_root: Path) -> No
 def append_report(report: Path, entry_file: Path) -> None:
     report = _resolve_target(report, "report")
     entry_file = _resolve_target(entry_file, "report entry")
+    if report.exists():
+        _reject_multiple_links(report, "report")
     if _same_file(report, entry_file):
         raise RegistryError("Report and report entry must be different files.")
     try:
@@ -384,6 +388,8 @@ def append_report(report: Path, entry_file: Path) -> None:
         raise RegistryError(f"Cannot read report entry '{entry_file}': {error}") from error
 
     with _exclusive_lock(report):
+        if report.exists():
+            _reject_multiple_links(report, "report")
         if _same_file(report, entry_file):
             raise RegistryError("Report and report entry must be different files.")
         try:
