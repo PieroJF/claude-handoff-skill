@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import date
+import io
 import multiprocessing
 import os
 from pathlib import Path
@@ -27,6 +28,7 @@ try:
         consume,
         insert_section,
         list_live,
+        main,
         purge,
     )
 except ModuleNotFoundError as error:
@@ -309,6 +311,56 @@ class HandoffRegistryTests(unittest.TestCase):
 
         self.assertEqual(self.registry.read_bytes(), self.CONSUMED_REGISTRY_BYTES)
 
+    def test_consume_ignores_backtick_fenced_handoff_headers(self):
+        self._require_implementation()
+        fenced_example = (
+            "```markdown\n"
+            "## [closed] ✅ HO-20260901-fenced-example-0745 — fenced-example "
+            "· consumido 2026-09-01 · detalle en sprint_report.md\n"
+            "```\n\n"
+        ).encode("utf-8")
+        self.registry.write_bytes(
+            self.REGISTRY_HEADER
+            + self.ALPHA_LIVE_SECTION
+            + fenced_example
+            + self.BETA_LIVE_SECTION
+            + self.ARCHIVE_TOMBSTONE
+        )
+
+        consume(self.registry, self.ALPHA_CODE, self.ALPHA_ROOT, date(2026, 9, 2))
+
+        self.assertEqual(
+            self.registry.read_bytes(),
+            self.REGISTRY_HEADER
+            + self.ALPHA_TOMBSTONE
+            + self.BETA_LIVE_SECTION
+            + self.ARCHIVE_TOMBSTONE,
+        )
+
+    def test_rejects_handoff_headers_without_paired_state_tokens(self):
+        self._require_implementation()
+        malformed_headers = (
+            "## 🟢 HO-20260902-hidden-label-1200 — hidden-label",
+            "## HO-20260902-hidden-state-1201 — hidden-state",
+            "## [closed] 🟢 HO-20260902-mismatched-state-1202 — mismatched-state",
+        )
+
+        for header in malformed_headers:
+            with self.subTest(header=header):
+                self.registry.write_text(f"# Registry\n\n{header}\n", encoding="utf-8")
+                with self.assertRaises(RegistryError):
+                    list_live(self.registry, self.ALPHA_ROOT)
+
+    def test_purge_rejects_live_code(self):
+        self._require_implementation()
+        self._assert_registry_fixture_bytes()
+        original_bytes = self.registry.read_bytes()
+
+        with self.assertRaises(RegistryError):
+            purge(self.registry, self.ALPHA_ROOT, self.ALPHA_CODE)
+
+        self.assertEqual(self.registry.read_bytes(), original_bytes)
+
     def test_purges_only_consumed_tombstones(self):
         self._require_implementation()
         self._assert_registry_fixture_bytes()
@@ -317,6 +369,87 @@ class HandoffRegistryTests(unittest.TestCase):
 
         self.assertEqual(removed, 1)
         self.assertEqual(self.registry.read_bytes(), self.PURGED_REGISTRY_BYTES)
+
+    def test_purge_ignores_tilde_fenced_tombstones(self):
+        self._require_implementation()
+        fenced_example = (
+            "~~~markdown\n"
+            "## [closed] ✅ HO-20260901-fenced-purge-0746 — fenced-purge "
+            "· consumido 2026-09-01 · detalle en sprint_report.md\n"
+            "~~~\n\n"
+        ).encode("utf-8")
+        expected = (
+            self.REGISTRY_HEADER
+            + self.ALPHA_LIVE_SECTION
+            + fenced_example
+            + self.BETA_LIVE_SECTION
+        )
+        self.registry.write_bytes(expected + self.ARCHIVE_TOMBSTONE)
+
+        removed = purge(self.registry, self.ALPHA_ROOT)
+
+        self.assertEqual(removed, 1)
+        self.assertEqual(self.registry.read_bytes(), expected)
+
+    def test_rejects_relative_root_declared_by_live_section(self):
+        self._require_implementation()
+        original_bytes = self.registry.read_bytes()
+        relative_section = self._write_live_section(
+            "relative-root.md",
+            "HO-20260902-relative-root-1202",
+            "relative-root",
+            Path("."),
+            "Never bind this section to the process cwd.",
+        )
+
+        with self.assertRaises(RegistryError):
+            insert_section(self.registry, relative_section, Path.cwd())
+
+        self.assertEqual(self.registry.read_bytes(), original_bytes)
+
+    def test_rejects_relative_project_root_argument(self):
+        self._require_implementation()
+
+        with self.assertRaises(RegistryError):
+            list_live(self.registry, Path("."))
+
+    def test_registry_mutation_rejects_hardlink_alias(self):
+        self._require_implementation()
+        original_bytes = self.registry.read_bytes()
+        alias = self.workdir / "registry-hardlink.md"
+        os.link(self.registry, alias)
+
+        with self.assertRaises(RegistryError):
+            consume(alias, self.ALPHA_CODE, self.ALPHA_ROOT, date(2026, 9, 2))
+
+        self.assertEqual(self.registry.read_bytes(), original_bytes)
+        self.assertEqual(alias.read_bytes(), original_bytes)
+
+    def test_cli_reports_target_without_filename_without_traceback(self):
+        self._require_implementation()
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        root_without_filename = Path(self.registry.anchor)
+
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            try:
+                exit_code = main(
+                    (
+                        "list-live",
+                        "--registry",
+                        str(root_without_filename),
+                        "--project-root",
+                        str(self.ALPHA_ROOT),
+                        "--json",
+                    )
+                )
+            except Exception as error:
+                self.fail(f"CLI leaked {type(error).__name__}: {error}")
+
+        self.assertNotEqual(exit_code, 0)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertTrue(stderr.getvalue().startswith("error: "))
+        self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_append_report_preserves_existing_bytes(self):
         self._require_implementation()
@@ -336,6 +469,28 @@ class HandoffRegistryTests(unittest.TestCase):
             + b"\n\n---\n\n"
             + self.REPORT_APPEND_ENTRY_BYTES,
         )
+
+    def test_append_report_rejects_itself_as_entry(self):
+        self._require_implementation()
+        report = self.workdir / "self-report.md"
+        report.write_bytes(self.REPORT_EXISTING_BYTES)
+
+        with self.assertRaises(RegistryError):
+            append_report(report, report)
+
+        self.assertEqual(report.read_bytes(), self.REPORT_EXISTING_BYTES)
+
+    def test_append_report_rejects_hardlink_entry_alias(self):
+        self._require_implementation()
+        report = self.workdir / "alias-report.md"
+        report.write_bytes(self.REPORT_EXISTING_BYTES)
+        entry_alias = self.workdir / "alias-report-entry.md"
+        os.link(report, entry_alias)
+
+        with self.assertRaises(RegistryError):
+            append_report(report, entry_alias)
+
+        self.assertEqual(report.read_bytes(), self.REPORT_EXISTING_BYTES)
 
     def test_concurrent_inserts_keep_both_sections(self):
         self._require_implementation()

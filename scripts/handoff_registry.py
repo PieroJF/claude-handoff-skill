@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
 import json
+import ntpath
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import posixpath
 import re
+import stat
 import sys
 import tempfile
-from collections.abc import Iterator, Sequence
 
 
 class RegistryError(RuntimeError):
@@ -30,7 +33,13 @@ class _Section:
     next_step: str | None = None
 
 
-_TOP_LEVEL_HEADER = re.compile(r"^## [^\r\n]*(?:\r?\n|$)", re.MULTILINE)
+@dataclass(frozen=True)
+class _MarkdownLine:
+    start: int
+    end: int
+    text: str
+
+
 _HANDOFF_HEADER = re.compile(
     r"## \[(?P<state>[^\]\r\n]+)\] (?P<symbol>\S+) "
     r"(?P<code>\S+) — (?P<details>[^\r\n]+)"
@@ -42,7 +51,8 @@ _TOMBSTONE_DETAILS = re.compile(
 _PROJECT_ROOT_LINE = re.compile(
     r"> Proyecto: (?P<project>.+?) · raíz: (?P<root>[^\r\n]+)"
 )
-_WINDOWS_ABSOLUTE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
+_FENCE_OPEN = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+_HANDOFF_CODE = re.compile(r"(?:^|[ \t])HO-[^ \t\r\n]+")
 _VALID_STATES = {
     ("closed-pending", "🟢"): "live",
     ("closed", "✅"): "closed",
@@ -60,36 +70,66 @@ def _read_utf8(path: Path, description: str) -> tuple[bytes, str]:
         raise RegistryError(f"{description.capitalize()} '{path}' is not valid UTF-8.") from error
 
 
+def _outside_fence_lines(text: str) -> list[_MarkdownLine]:
+    lines: list[_MarkdownLine] = []
+    offset = 0
+    fence: str | None = None
+    for raw_line in text.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+        if fence is not None:
+            marker = re.escape(fence[0])
+            if re.fullmatch(rf" {{0,3}}{marker}{{{len(fence)},}}[ \t]*", line):
+                fence = None
+        else:
+            opening = _FENCE_OPEN.fullmatch(line)
+            if opening is not None and not (
+                opening["fence"].startswith("`") and "`" in opening["info"]
+            ):
+                fence = opening["fence"]
+            else:
+                lines.append(_MarkdownLine(offset, offset + len(raw_line), line))
+        offset += len(raw_line)
+    return lines
+
+
+def _top_level_headers(text: str) -> list[_MarkdownLine]:
+    return [line for line in _outside_fence_lines(text) if line.text.startswith("## ")]
+
+
 def _parse_next_step(body: str, code: str) -> str:
-    lines = body.splitlines()
-    headings = [index for index, line in enumerate(lines) if line == "### Siguiente paso concreto"]
+    lines = _outside_fence_lines(body)
+    headings = [line for line in lines if line.text == "### Siguiente paso concreto"]
     if len(headings) != 1:
         raise RegistryError(f"Live handoff '{code}' must have one next-step heading.")
 
-    start = headings[0] + 1
+    start = headings[0].end
     end = next(
-        (index for index in range(start, len(lines)) if lines[index].startswith("### ")),
-        len(lines),
+        (line.start for line in lines if line.start >= start and line.text.startswith("### ")),
+        len(body),
     )
     prefix = "- **Descripción:** "
-    descriptions = [line[len(prefix) :] for line in lines[start:end] if line.startswith(prefix)]
+    descriptions = [
+        line.text[len(prefix) :]
+        for line in lines
+        if start <= line.start < end and line.text.startswith(prefix)
+    ]
     if len(descriptions) != 1 or not descriptions[0].strip():
         raise RegistryError(f"Live handoff '{code}' must have one concrete next step.")
     return descriptions[0]
 
 
 def _parse_sections(text: str) -> list[_Section]:
-    headers = list(_TOP_LEVEL_HEADER.finditer(text))
+    headers = _top_level_headers(text)
     sections: list[_Section] = []
     seen_codes: set[str] = set()
 
     for index, header in enumerate(headers):
-        line = header.group(0).rstrip("\r\n")
-        if not line.startswith("## ["):
-            continue
+        line = header.text
         match = _HANDOFF_HEADER.fullmatch(line)
         if match is None:
-            raise RegistryError(f"Malformed handoff header: {line}")
+            if line.startswith("## [") or _HANDOFF_CODE.search(line):
+                raise RegistryError(f"Malformed handoff header: {line}")
+            continue
 
         pair = (match["state"], match["symbol"])
         state = _VALID_STATES.get(pair)
@@ -105,7 +145,7 @@ def _parse_sections(text: str) -> list[_Section]:
         seen_codes.add(code)
 
         details = match["details"]
-        end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+        end = headers[index + 1].start if index + 1 < len(headers) else len(text)
         if state == "closed":
             tombstone = _TOMBSTONE_DETAILS.fullmatch(details)
             if tombstone is None:
@@ -115,14 +155,18 @@ def _parse_sections(text: str) -> list[_Section]:
             except ValueError as error:
                 raise RegistryError(f"Invalid consumed date for handoff '{code}'.") from error
             sections.append(
-                _Section(header.start(), end, state, code, tombstone["workstream"])
+                _Section(header.start, end, state, code, tombstone["workstream"])
             )
             continue
 
         if " · consumido " in details or not details.strip() or details != details.strip():
             raise RegistryError(f"Malformed live header for handoff '{code}'.")
-        body = text[header.end() : end]
-        project_lines = [line for line in body.splitlines() if line.startswith("> Proyecto:")]
+        body = text[header.end : end]
+        project_lines = [
+            line.text
+            for line in _outside_fence_lines(body)
+            if line.text.startswith("> Proyecto:")
+        ]
         if len(project_lines) != 1:
             raise RegistryError(f"Live handoff '{code}' must have one project-root line.")
         project = _PROJECT_ROOT_LINE.fullmatch(project_lines[0])
@@ -133,9 +177,10 @@ def _parse_sections(text: str) -> list[_Section]:
             or project["root"] != project["root"].strip()
         ):
             raise RegistryError(f"Live handoff '{code}' has an invalid project-root line.")
+        _path_key(project["root"])
         sections.append(
             _Section(
-                header.start(),
+                header.start,
                 end,
                 state,
                 code,
@@ -149,13 +194,19 @@ def _parse_sections(text: str) -> list[_Section]:
 
 def _path_key(path: Path | str) -> str:
     raw = str(path)
+    windows_absolute = PureWindowsPath(raw).is_absolute()
+    posix_absolute = PurePosixPath(raw).is_absolute()
+    if not windows_absolute and not posix_absolute:
+        raise RegistryError(f"Project root '{path}' must be an absolute path.")
+
     try:
-        resolved = str(Path(path).resolve())
-    except OSError as error:
+        if windows_absolute and (os.name == "nt" or not posix_absolute):
+            resolved = str(Path(path).resolve()) if os.name == "nt" else ntpath.normpath(raw)
+            return f"windows:{ntpath.normcase(resolved).casefold()}"
+        resolved = str(Path(path).resolve()) if os.name != "nt" else posixpath.normpath(raw)
+        return f"posix:{resolved}"
+    except (OSError, RuntimeError, ValueError) as error:
         raise RegistryError(f"Cannot resolve project root '{path}': {error}") from error
-    if os.name == "nt" or _WINDOWS_ABSOLUTE.match(raw):
-        return resolved.replace("/", "\\").casefold()
-    return resolved
 
 
 def _matches_root(section: _Section, project_root: Path) -> bool:
@@ -165,7 +216,46 @@ def _matches_root(section: _Section, project_root: Path) -> bool:
 
 
 def _sidecar_path(target: Path) -> Path:
-    return target.with_name(f"{target.name}.lock")
+    if not target.name:
+        raise RegistryError(f"Target path '{target}' must include a filename.")
+    try:
+        return target.with_name(f"{target.name}.lock")
+    except ValueError as error:
+        raise RegistryError(f"Target path '{target}' must include a filename.") from error
+
+
+def _resolve_target(path: Path | str, description: str) -> Path:
+    try:
+        target = Path(path).resolve()
+    except (OSError, RuntimeError, ValueError) as error:
+        raise RegistryError(f"Cannot resolve {description} path '{path}': {error}") from error
+    if not target.name:
+        raise RegistryError(f"{description.capitalize()} path '{path}' must include a filename.")
+    if target.exists() and not target.is_file():
+        raise RegistryError(f"{description.capitalize()} path '{path}' is not a regular file.")
+    return target
+
+
+def _reject_multiple_links(target: Path, description: str) -> None:
+    try:
+        metadata = target.stat()
+    except OSError as error:
+        raise RegistryError(f"Cannot inspect {description} '{target}': {error}") from error
+    if not stat.S_ISREG(metadata.st_mode):
+        raise RegistryError(f"{description.capitalize()} '{target}' is not a regular file.")
+    if metadata.st_nlink > 1:
+        raise RegistryError(
+            f"{description.capitalize()} '{target}' has multiple hard links; mutation is unsafe."
+        )
+
+
+def _same_file(first: Path, second: Path) -> bool:
+    if first == second:
+        return True
+    try:
+        return first.exists() and second.exists() and os.path.samefile(first, second)
+    except OSError as error:
+        raise RegistryError(f"Cannot compare '{first}' and '{second}': {error}") from error
 
 
 @contextmanager
@@ -207,6 +297,7 @@ def _exclusive_lock(target: Path) -> Iterator[None]:
 def _atomic_replace(target: Path, content: bytes) -> None:
     temporary: Path | None = None
     try:
+        _reject_multiple_links(target, "registry")
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, dir=target.parent) as handle:
             temporary = Path(handle.name)
             handle.write(content)
@@ -232,7 +323,8 @@ def _registry_state(registry: Path) -> tuple[bytes, str, list[_Section]]:
 
 
 def list_live(registry: Path, project_root: Path) -> list[dict[str, str]]:
-    registry = Path(registry)
+    registry = _resolve_target(registry, "registry")
+    _path_key(project_root)
     with _exclusive_lock(registry):
         _, _, sections = _registry_state(registry)
         return [
@@ -257,10 +349,11 @@ def _boundary_separator(content: bytes) -> bytes:
 
 
 def insert_section(registry: Path, section_file: Path, project_root: Path) -> None:
-    registry = Path(registry)
+    registry = _resolve_target(registry, "registry")
+    _reject_multiple_links(registry, "registry")
     section_raw, section_text = _read_utf8(Path(section_file), "section file")
     new_sections = _parse_sections(section_text)
-    section_headers = list(_TOP_LEVEL_HEADER.finditer(section_text))
+    section_headers = _top_level_headers(section_text)
     if (
         len(new_sections) != 1
         or len(section_headers) != 1
@@ -273,6 +366,7 @@ def insert_section(registry: Path, section_file: Path, project_root: Path) -> No
         raise RegistryError(f"Handoff '{new_section.code}' belongs to a different project root.")
 
     with _exclusive_lock(registry):
+        _reject_multiple_links(registry, "registry")
         original, _, sections = _registry_state(registry)
         if any(section.code == new_section.code for section in sections):
             raise RegistryError(f"Duplicate handoff code '{new_section.code}'.")
@@ -280,13 +374,18 @@ def insert_section(registry: Path, section_file: Path, project_root: Path) -> No
 
 
 def append_report(report: Path, entry_file: Path) -> None:
-    report = Path(report)
+    report = _resolve_target(report, "report")
+    entry_file = _resolve_target(entry_file, "report entry")
+    if _same_file(report, entry_file):
+        raise RegistryError("Report and report entry must be different files.")
     try:
-        entry = Path(entry_file).read_bytes()
+        entry = entry_file.read_bytes()
     except OSError as error:
         raise RegistryError(f"Cannot read report entry '{entry_file}': {error}") from error
 
     with _exclusive_lock(report):
+        if _same_file(report, entry_file):
+            raise RegistryError("Report and report entry must be different files.")
         try:
             with report.open("ab") as handle:
                 handle.seek(0, os.SEEK_END)
@@ -300,8 +399,11 @@ def append_report(report: Path, entry_file: Path) -> None:
 
 
 def consume(registry: Path, code: str, project_root: Path, consumed_on: date) -> None:
-    registry = Path(registry)
+    registry = _resolve_target(registry, "registry")
+    _reject_multiple_links(registry, "registry")
+    _path_key(project_root)
     with _exclusive_lock(registry):
+        _reject_multiple_links(registry, "registry")
         _, text, sections = _registry_state(registry)
         section = next((item for item in sections if item.code == code), None)
         if section is None:
@@ -324,9 +426,15 @@ def consume(registry: Path, code: str, project_root: Path, consumed_on: date) ->
 
 
 def purge(registry: Path, project_root: Path, code: str | None = None) -> int:
-    registry = Path(registry)
+    registry = _resolve_target(registry, "registry")
+    _reject_multiple_links(registry, "registry")
+    _path_key(project_root)
     with _exclusive_lock(registry):
+        _reject_multiple_links(registry, "registry")
         _, text, sections = _registry_state(registry)
+        selected = next((section for section in sections if section.code == code), None)
+        if selected is not None and selected.state != "closed":
+            raise RegistryError(f"Handoff '{code}' is live and cannot be purged.")
         live_sections = [section for section in sections if section.state == "live"]
         if live_sections and not any(_matches_root(section, project_root) for section in live_sections):
             raise RegistryError("Registry has no live handoff for the supplied project root.")
