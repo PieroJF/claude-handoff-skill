@@ -71,6 +71,15 @@ class LifecycleTests(unittest.TestCase):
                 self.init()
             self.assertFalse(self.path.exists())
 
+    def test_close_init_gate_detects_legacy_that_lists_as_empty(self):
+        original = b"# Legacy session snapshot\nImportant unfinished work.\n"
+        self.path.write_bytes(original)
+        self.assertEqual(registry.list_live(self.path, self.root), [])
+        with self.assertRaises(registry.RegistryError):
+            self.init()
+        self.assertEqual(self.path.read_bytes(), original)
+        self.assertFalse(self.report.exists())
+
     def test_get_live_returns_exact_whole_section_and_rejects_closed_or_wrong_root(self):
         self.init()
         registry.insert_section(self.path, self.section, self.root)

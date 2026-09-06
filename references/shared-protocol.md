@@ -99,10 +99,14 @@ the CLI's report guard by importing it.
    referenced plan (or `Sin plan formal previo`), completed and remaining phases,
    files, decisions and reasons, debt, blockers, branch, commit, and last zip.
    Use `N/A` for inapplicable fields. Verify repo state without changing branches.
-2. Inspect the registry fresh. If absent, prepare HEADER and use `init`. If present,
-   use `list-live`. On a format error, inspect and classify it; use migration below
-   only for unstructured legacy. Never treat a validation failure as permission
-   to erase or rewrap a coded registry.
+2. Prepare HEADER and run `init` whether the registry is absent or present. It is
+   idempotent for a valid registry and rejects an existing legacy snapshot. This
+   gate must precede the report append and section insert: an empty `list-live`
+   result does not establish registry format. After the gate succeeds, use
+   `list-live`. On an initialization or format error, inspect and classify it; use
+   migration below only for unstructured legacy, preserving its full source and
+   durable report before proceeding with this close. Never treat a validation
+   failure as permission to erase or rewrap a coded registry.
 3. Prepare SECTION and ENTRY with one unique code and the same absolute root.
    Include the full section in the report's resumable-state block so warnings,
    references, and exact next steps survive consumption. Record `Canal: no

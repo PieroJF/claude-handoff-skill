@@ -15,6 +15,13 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn("unique report-only code", protocol)
         self.assertIn("Do not reuse the original `--code` for different content", protocol)
 
+    def test_close_checks_init_even_when_legacy_listing_looks_empty(self):
+        protocol = (ROOT / "references" / "shared-protocol.md").read_text(encoding="utf-8")
+        close = protocol.split("## Close:", 1)[1].split("## Resume:", 1)[0]
+        close = " ".join(close.split())
+        self.assertIn("run `init` whether the registry is absent or present", close)
+        self.assertIn("an empty `list-live` result does not establish registry format", close)
+
     def read_reference(self, name: str) -> str:
         path = ROOT / "references" / name
         self.assertTrue(path.is_file(), f"Missing runtime reference: {path.name}")
