@@ -154,6 +154,16 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(self.path.read_bytes(), result)
         self.assertEqual(self.report.read_bytes(), report)
 
+    def test_migration_preserves_literal_template_syntax_in_legacy_source(self):
+        original = b"# Legacy\nThe old template is {{ user.name }}; preserve its syntax.\n"
+        self.path.write_bytes(original)
+        try:
+            self.migrate()
+        except registry.RegistryError as error:
+            self.fail(f"Legacy literal syntax must remain data: {error}")
+        self.assertIn(original, self.path.read_bytes())
+        self.assertIn(original, self.report.read_bytes())
+
     def test_migration_report_survives_replace_failure_and_retry_is_idempotent(self):
         original = b"# Legacy\nUnfinished work\n"
         self.path.write_bytes(original)

@@ -480,7 +480,8 @@ def _bind_path(target: Path, project_root: Path, filename: str) -> Path:
 
 
 def _validate_input(text: str, description: str) -> None:
-    if not text.strip() or re.search(r"\{\{[^\n]*\}\}", text):
+    field_lines = "\n".join(line.text for line in _outside_fence_lines(text))
+    if not text.strip() or re.search(r"\{\{[^\n]*\}\}", field_lines):
         raise RegistryError(f"{description} is empty or has unfilled template fields.")
 
 
