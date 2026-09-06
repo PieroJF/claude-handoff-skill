@@ -1,5 +1,9 @@
 # Documento de diseño interno — no se publica (referencias a proyecto privado)
 DESIGN-multi-session.md
+/SESSION_HANDOFF.md
+/SESSION_HANDOFF.md.lock
+__pycache__/
+*.py[cod]
 
 # OS / editor noise
 .DS_Store

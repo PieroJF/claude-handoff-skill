@@ -7,6 +7,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
+import hashlib
 import json
 import ntpath
 import os
@@ -299,13 +300,20 @@ def _exclusive_lock(target: Path) -> Iterator[None]:
 def _atomic_replace(target: Path, content: bytes) -> None:
     temporary: Path | None = None
     try:
-        _reject_multiple_links(target, "registry")
+        if target.exists():
+            _reject_multiple_links(target, "registry")
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, dir=target.parent) as handle:
             temporary = Path(handle.name)
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, target)
+        if os.name != "nt":
+            directory = os.open(target.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
     except BaseException as error:
         if temporary is not None:
             try:
@@ -458,6 +466,239 @@ def purge(registry: Path, project_root: Path, code: str | None = None) -> int:
         return len(removed)
 
 
+def _bind_path(target: Path, project_root: Path, filename: str) -> Path:
+    """Bind runtime operations to the selected project's actual canonical files."""
+    _path_key(project_root)
+    root = Path(project_root).resolve()
+    if not root.is_dir():
+        raise RegistryError(f"Project root '{root}' is not an existing directory.")
+    resolved = _resolve_target(target, filename)
+    expected = root / filename
+    if resolved != expected:
+        raise RegistryError(f"Expected project file '{expected}', received '{resolved}'.")
+    return resolved
+
+
+def _validate_input(text: str, description: str) -> None:
+    if not text.strip() or re.search(r"\{\{[^\n]*\}\}", text):
+        raise RegistryError(f"{description} is empty or has unfilled template fields.")
+
+
+def _read_header(header_file: Path) -> bytes:
+    raw, text = _read_utf8(header_file, "header file")
+    _validate_input(text, "Registry header")
+    if not text.startswith("# SESSION_HANDOFF — ") or _top_level_headers(text):
+        raise RegistryError("Header must begin '# SESSION_HANDOFF — ' and contain no sections.")
+    return raw
+
+
+def init_registry(registry: Path, header_file: Path, project_root: Path) -> None:
+    registry = _bind_path(registry, project_root, "SESSION_HANDOFF.md")
+    header = _read_header(header_file)
+    with _exclusive_lock(registry):
+        if registry.exists():
+            _, text, _ = _registry_state(registry)
+            if not text.startswith("# SESSION_HANDOFF — "):
+                raise RegistryError("Existing file is not a registry; use migrate-legacy explicitly.")
+            return
+        _atomic_replace(registry, header)
+
+
+def get_live(registry: Path, code: str, project_root: Path) -> dict[str, str]:
+    registry = _bind_path(registry, project_root, "SESSION_HANDOFF.md")
+    with _exclusive_lock(registry):
+        _, text, sections = _registry_state(registry)
+        section = _selected_live(sections, code, project_root)
+        return {
+            "code": section.code,
+            "workstream": section.workstream,
+            "project_root": section.project_root,
+            "next_step": section.next_step,
+            "section": text[section.start:section.end],
+        }
+
+
+def _selected_live(sections: list[_Section], code: str, project_root: Path) -> _Section:
+    section = next((item for item in sections if item.code == code), None)
+    if section is None:
+        raise RegistryError(f"Unknown handoff code '{code}'.")
+    if section.state != "live":
+        raise RegistryError(f"Handoff '{code}' is already consumed.")
+    if not _matches_root(section, project_root):
+        raise RegistryError(f"Handoff '{code}' belongs to a different project root.")
+    return section
+
+
+_REPORT_CODE = re.compile(r"\*\*Código de handoff:\*\* (?P<code>HO-[^\s]+)[ \t]*")
+_REPORT_BEGIN = re.compile(r"<!-- handoff-entry (?P<code>HO-[^\s]+) (?P<size>\d+) (?P<sha>[a-f0-9]{64}) -->")
+
+
+def _report_codes(text: str) -> list[str]:
+    return [match["code"] for line in _outside_fence_lines(text)
+            if (match := _REPORT_CODE.fullmatch(line.text)) is not None]
+
+
+def _verify_report_entry(raw: bytes, code: str) -> bytes:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RegistryError("Report is not valid UTF-8.") from error
+    if _report_codes(text).count(code) != 1:
+        raise RegistryError(f"Report must contain exactly one unfenced entry for '{code}'.")
+    lines = _outside_fence_lines(text)
+    code_line = next(line for line in lines if (match := _REPORT_CODE.fullmatch(line.text))
+                     is not None and match["code"] == code)
+    headings = [line for line in lines if line.text.startswith("## ")]
+    heading = next((line for line in reversed(headings) if line.start < code_line.start), None)
+    if heading is None or not heading.text.startswith("## Sesión:"):
+        raise RegistryError(f"Report code '{code}' has no session entry heading.")
+    end = next((line.start for line in headings if line.start > code_line.start), len(text))
+    if not text[code_line.end:end].strip():
+        raise RegistryError(f"Report entry '{code}' has no detail.")
+    # New entries carry a length and digest so a torn append never authorizes consume.
+    for line in _outside_fence_lines(text):
+        match = _REPORT_BEGIN.fullmatch(line.text)
+        if match is None or match["code"] != code:
+            continue
+        start = len(text[:line.end].encode("utf-8"))
+        size = int(match["size"])
+        payload = raw[start:start + size]
+        closing = f"\n<!-- /handoff-entry {code} -->\n".encode("utf-8")
+        if (len(payload) != size or hashlib.sha256(payload).hexdigest() != match["sha"]
+                or not raw[start + size:].startswith(closing)):
+            raise RegistryError(f"Incomplete or changed report entry for '{code}'; preserve and repair it before retrying.")
+        return payload
+    return text[heading.start:end].rstrip("\r\n- ").encode("utf-8")
+
+
+def _validated_entry(entry: bytes, code: str) -> None:
+    try:
+        text = entry.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RegistryError("Report entry is not valid UTF-8.") from error
+    _validate_input(text, "Report entry")
+    if _report_codes(text) != [code] or not _top_level_headers(text):
+        raise RegistryError("Entry must have a session heading and exactly one matching handoff code.")
+
+
+def _append_once_locked(report: Path, entry: bytes, code: str) -> None:
+    _validated_entry(entry, code)
+    original = b""
+    if report.exists():
+        _reject_multiple_links(report, "report")
+        original, text = _read_utf8(report, "report")
+        codes = _report_codes(text)
+        if code in codes:
+            existing = _verify_report_entry(original, code)
+            if entry.rstrip() != existing.rstrip():
+                raise RegistryError(f"Conflicting report content already exists for '{code}'.")
+            # A previous attempt may have failed during fsync; retry must make it durable.
+            with report.open("ab") as handle:
+                handle.flush()
+                os.fsync(handle.fileno())
+            return
+    envelope = (
+        f"<!-- handoff-entry {code} {len(entry)} {hashlib.sha256(entry).hexdigest()} -->\n".encode("utf-8")
+        + entry + f"\n<!-- /handoff-entry {code} -->\n".encode("utf-8")
+    )
+    try:
+        with report.open("ab") as handle:
+            if original:
+                handle.write(b"\n\n---\n\n")
+            handle.write(envelope)
+            handle.flush()
+            os.fsync(handle.fileno())
+        persisted, _ = _read_utf8(report, "report")
+        _verify_report_entry(persisted, code)
+    except OSError as error:
+        raise RegistryError(f"Cannot persist report '{report}': {error}") from error
+
+
+def append_report_once(report: Path, entry_file: Path, code: str) -> None:
+    report = _resolve_target(report, "report")
+    entry_file = _resolve_target(entry_file, "report entry")
+    if _same_file(report, entry_file):
+        raise RegistryError("Report and report entry must be different files.")
+    entry, _ = _read_utf8(entry_file, "report entry")
+    with _exclusive_lock(report):
+        _append_once_locked(report, entry, code)
+
+
+def consume_with_report(registry: Path, report: Path, code: str, project_root: Path, consumed_on: date) -> None:
+    registry = _bind_path(registry, project_root, "SESSION_HANDOFF.md")
+    report = _bind_path(report, project_root, "sprint_report.md")
+    if type(consumed_on) is not date:
+        raise RegistryError("Consumed date must be a date value.")
+    # Always registry then report; migration uses the same order to avoid deadlocks.
+    with _exclusive_lock(registry), _exclusive_lock(report):
+        _, text, sections = _registry_state(registry)
+        section = _selected_live(sections, code, project_root)
+        raw, _ = _read_utf8(report, "report")
+        _verify_report_entry(raw, code)
+        _reject_multiple_links(report, "report")
+        try:
+            with report.open("ab") as handle:
+                handle.flush()
+                os.fsync(handle.fileno())
+        except OSError as error:
+            raise RegistryError(f"Cannot verify report durability: {error}") from error
+        newline = "\r\n" if "\r\n" in text[section.start:section.end] else "\n"
+        tombstone = (f"## [closed] ✅ {code} — {section.workstream} · consumido "
+                     f"{consumed_on.isoformat()} · detalle en sprint_report.md{newline}{newline}")
+        _atomic_replace(registry, (text[:section.start] + tombstone + text[section.end:]).encode("utf-8"))
+
+
+def _legacy_block(raw: bytes) -> bytes:
+    text = raw.decode("utf-8")
+    longest = max((len(match[0]) for match in re.finditer(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    digest = hashlib.sha256(raw).hexdigest()
+    return (f"\n\n<!-- handoff-legacy-sha256:{digest} -->\n"
+            f"### Snapshot legacy preservado\n\n{fence}text\n".encode("utf-8")
+            + raw + f"\n{fence}\n".encode("utf-8"))
+
+
+def migrate_legacy(registry: Path, report: Path, header_file: Path, section_file: Path,
+                   entry_file: Path, project_root: Path) -> None:
+    registry = _bind_path(registry, project_root, "SESSION_HANDOFF.md")
+    report = _bind_path(report, project_root, "sprint_report.md")
+    header = _read_header(header_file)
+    section_raw, section_text = _read_utf8(section_file, "section file")
+    _validate_input(section_text, "Live section")
+    sections = _parse_sections(section_text)
+    if (len(sections) != 1 or len(_top_level_headers(section_text)) != 1
+            or section_text[:sections[0].start].strip()):
+        raise RegistryError("Migration requires exactly one live section.")
+    section = _selected_live(sections, sections[0].code, project_root)
+    entry, _ = _read_utf8(entry_file, "report entry")
+    _validated_entry(entry, section.code)
+    with _exclusive_lock(registry), _exclusive_lock(report):
+        _reject_multiple_links(registry, "registry")
+        original, text = _read_utf8(registry, "legacy registry")
+        if text.startswith("# SESSION_HANDOFF — "):
+            current = _parse_sections(text)
+            selected = _selected_live(current, section.code, project_root)
+            selected_raw = text[selected.start:selected.end].encode("utf-8")
+            prefix = section_raw
+            if not selected_raw.startswith(prefix):
+                raise RegistryError("Registry is already initialized; migration input does not match.")
+            suffix = selected_raw[len(prefix):]
+            if not re.match(rb"\n\n<!-- handoff-legacy-sha256:[a-f0-9]{64} -->\n", suffix):
+                raise RegistryError("Registry already contains structured sections; no legacy migration permitted.")
+            _append_once_locked(report, entry + suffix, section.code)
+            return
+        # Never classify a partial/old coded registry as an unstructured snapshot.
+        if re.search(r"(?m)^\s*##\s+(?:\[closed(?:-pending)?\]|[🟢✅]|.*\bHO-)", text):
+            raise RegistryError("Coded or malformed registry cannot be migrated as a legacy snapshot.")
+        if not text.strip():
+            raise RegistryError("Empty existing file is not a legacy snapshot.")
+        block = _legacy_block(original)
+        updated = header + _boundary_separator(header) + section_raw + block
+        _parse_sections(updated.decode("utf-8"))
+        _append_once_locked(report, entry + block, section.code)
+        _atomic_replace(registry, updated)
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> None:
         raise RegistryError(message)
@@ -466,6 +707,20 @@ class _Parser(argparse.ArgumentParser):
 def _build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="handoff-registry")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    initialize = commands.add_parser("init")
+    initialize.add_argument("--registry", type=Path, required=True)
+    initialize.add_argument("--project-root", type=Path, required=True)
+    initialize.add_argument("--header-file", type=Path, required=True)
+
+    migrate = commands.add_parser("migrate-legacy")
+    for name in ("registry", "report", "project-root", "header-file", "section-file", "entry-file"):
+        migrate.add_argument(f"--{name}", type=Path, required=True)
+
+    get = commands.add_parser("get-live")
+    get.add_argument("--registry", type=Path, required=True)
+    get.add_argument("--project-root", type=Path, required=True)
+    get.add_argument("--code", required=True)
 
     listing = commands.add_parser("list-live")
     listing.add_argument("--registry", type=Path, required=True)
@@ -480,12 +735,15 @@ def _build_parser() -> argparse.ArgumentParser:
     append = commands.add_parser("append-report")
     append.add_argument("--report", type=Path, required=True)
     append.add_argument("--entry-file", type=Path, required=True)
+    append.add_argument("--project-root", type=Path, required=True)
+    append.add_argument("--code", required=True)
 
     consume_command = commands.add_parser("consume")
     consume_command.add_argument("--registry", type=Path, required=True)
     consume_command.add_argument("--code", required=True)
     consume_command.add_argument("--project-root", type=Path, required=True)
     consume_command.add_argument("--date", required=True)
+    consume_command.add_argument("--report", type=Path, required=True)
 
     purge_command = commands.add_parser("purge")
     purge_command.add_argument("--registry", type=Path, required=True)
@@ -497,17 +755,31 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         arguments = _build_parser().parse_args(argv)
+        if hasattr(arguments, "registry"):
+            _bind_path(arguments.registry, arguments.project_root, "SESSION_HANDOFF.md")
+        if hasattr(arguments, "report"):
+            _bind_path(arguments.report, arguments.project_root, "sprint_report.md")
         if arguments.command == "list-live":
             result = list_live(arguments.registry, arguments.project_root)
             if arguments.json:
                 print(json.dumps(result, ensure_ascii=False))
             else:
                 for section in result:
-                    print(f"{section['code']}\t{section['workstream']}\t{section['next_step']}")
+                    print("\t".join(json.dumps(section[key], ensure_ascii=True)
+                                    for key in ("code", "workstream", "next_step")))
+        elif arguments.command == "get-live":
+            print(json.dumps(get_live(arguments.registry, arguments.code, arguments.project_root), ensure_ascii=False))
+        elif arguments.command == "init":
+            init_registry(arguments.registry, arguments.header_file, arguments.project_root)
+        elif arguments.command == "migrate-legacy":
+            migrate_legacy(arguments.registry, arguments.report, arguments.header_file,
+                           arguments.section_file, arguments.entry_file, arguments.project_root)
         elif arguments.command == "insert":
+            _, section_text = _read_utf8(arguments.section_file, "section file")
+            _validate_input(section_text, "Live section")
             insert_section(arguments.registry, arguments.section_file, arguments.project_root)
         elif arguments.command == "append-report":
-            append_report(arguments.report, arguments.entry_file)
+            append_report_once(arguments.report, arguments.entry_file, arguments.code)
         elif arguments.command == "consume":
             try:
                 if re.fullmatch(r"\d{4}-\d{2}-\d{2}", arguments.date) is None:
@@ -515,12 +787,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 consumed_on = date.fromisoformat(arguments.date)
             except ValueError as error:
                 raise RegistryError(f"Invalid ISO date '{arguments.date}'.") from error
-            consume(arguments.registry, arguments.code, arguments.project_root, consumed_on)
+            consume_with_report(arguments.registry, arguments.report, arguments.code,
+                                arguments.project_root, consumed_on)
         elif arguments.command == "purge":
             print(purge(arguments.registry, arguments.project_root, arguments.code))
         return 0
-    except RegistryError as error:
-        print(f"error: {error}", file=sys.stderr)
+    except (RegistryError, OSError) as error:
+        message = str(error).encode("unicode_escape").decode("ascii")
+        print(f"error: {message}", file=sys.stderr)
         return 2
 
 
