@@ -1,0 +1,6 @@
+interface:
+  display_name: "Handoff"
+  short_description: "Persist and resume project work safely"
+  default_prompt: "Use $handoff to close this task and preserve its resumable state."
+policy:
+  allow_implicit_invocation: true

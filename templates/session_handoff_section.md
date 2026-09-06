@@ -1,70 +1,46 @@
-<!-- Template: SESSION_HANDOFF.md — registro de handoffs vivos.
-     Bloque 1 (HEADER) se escribe UNA sola vez, al crear el archivo.
-     Bloque 2 (SECCIÓN) se INSERTA en cada cierre. Nunca sobrescribir el archivo completo. -->
+## [closed-pending] 🟢 {{HANDOFF_CODE}} — {{WORKSTREAM}}
 
-<!-- ===== BLOQUE 1: HEADER DEL REGISTRO (solo al crear el archivo) ===== -->
+> Proyecto: {{PROJECT_NAME}} · raíz: {{ABSOLUTE_PROJECT_ROOT}}
+> Canal: {{VERIFIED_RUNTIME_ORIGIN_OR_no_disponible}}
+> Generado: {{TIMESTAMP_WITH_TIMEZONE_AND_ESTIMATE_LABEL_IF_APPLICABLE}}
 
-# SESSION_HANDOFF — {{NOMBRE_PROYECTO}}
-
-> Registro de handoffs. `[closed-pending] 🟢` vivo = sesión cerrada, aún no relevada ·
-> `[closed] ✅` consumido = sesión cerrada y relevada, purgable.
-> Reclamar: `/handoff resume <código>`   ·   Limpiar: `/handoff purge`
-
-<!-- ===== BLOQUE 2: SECCIÓN DE HANDOFF (insertar una por cierre, estado [closed-pending] 🟢) =====
-     La etiqueta [closed-pending] y el emoji 🟢 son un token pareado: transicionan juntos a
-     [closed] ✅ al consumir. El emoji es la fuente canónica; la etiqueta es su alias grepeable. -->
-
-## [closed-pending] 🟢 {{HO-AAAAMMDD-workstream-HHMM}} — {{workstream}}
-
-> Proyecto: {{NOMBRE_PROYECTO}} · raíz: {{/ruta/absoluta/del/proyecto}}
-> Canal: {{nombre-sesión}} [{{ref}}] · capturado {{AAAA-MM-DD HH:MM}}  (pista — reverificar antes de enviar)
-> Generado: {{YYYY-MM-DD HH:MM}} [estimado]
-
-<!-- La línea "Canal" identifica la sesión que escribió este handoff, tal como la imprime ListAgents.
-     Es OBLIGATORIA: si el canal no está disponible se escribe "> Canal: no disponible", no se omite.
-     Es una PISTA para buscar, no una dirección para enviar — el [ref] es un handle de runtime que
-     puede caducar. Quien releve reverifica contra un ListAgents fresco. -->
-
-<!-- La línea "Proyecto · raíz" es el vínculo de proyecto: la sesión receptora la compara
-     contra su pwd (RECEPCIÓN Paso 0). Si no coincide, para en seco y no consume el handoff. -->
-
+<!-- Prepared UTF-8 section input only; header is a separate template.
+     Replace every placeholder and remove comments before insertion.
+     Channel identity is a lookup hint; reverify with the active runtime adapter.
+     Keep every required section; use N/A when inapplicable. -->
 
 ### Estado actual del workstream
 
-{{2-4 líneas: qué es el proyecto, en qué punto está este workstream, qué se completó}}
+{{PROJECT_CONTEXT_STACK_AND_VERIFIED_WORKSTREAM_STATE}}
 
 ### Última sesión — Resumen
 
 - **Fecha:** {{YYYY-MM-DD}}
-- **Objetivo:** {{1-2 líneas}}
-- **Plan ejecutado:** {{título del plan o "Sin plan formal previo"}}
-- **Resultado:** {{completado / parcial / con desviaciones — breve}}
+- **Objetivo:** {{OBJECTIVE}}
+- **Plan ejecutado:** {{PLAN_TITLE_AND_PATH_OR_Sin_plan_formal_previo}}
+- **Resultado:** {{COMPLETE_PARTIAL_OR_DEVIATIONS_WITH_EVIDENCE}}
 
 ### Siguiente paso concreto
 
-- **Fase:** {{nombre/número de la siguiente fase}}
-- **Descripción:** {{qué hay que hacer}}
-- **Archivos involucrados:** {{rutas clave}}
-- **Precondiciones:** {{qué debe estar listo antes de empezar}}
+- **Fase:** {{NEXT_PHASE}}
+- **Descripción:** {{ONE_CONCRETE_NEXT_ACTION}}
+- **Archivos involucrados:** {{ABSOLUTE_KEY_PATHS}}
+- **Precondiciones:** {{PRECONDITIONS_OR_NA}}
 
 ### Advertencias activas
 
-- **Deuda técnica pendiente:** {{shortcut/workaround — contexto}} (o "N/A")
-- **Blockers externos:** {{descripción — de quién depende, desde cuándo}} (o "N/A")
-- **Decisiones que NO revertir sin contexto:** {{decisión — por qué, riesgo de revertir}} (o "N/A")
+- **Deuda técnica pendiente:** {{DEBT_AND_REASON_OR_NA}}
+- **Blockers externos:** {{DEPENDENCY_OWNER_AND_SINCE_OR_NA}}
+- **Decisiones que NO revertir sin contexto:** {{DECISION_REASON_AND_RISK_OR_NA}}
 
 ### Estado del repo
 
-- **Rama:** {{nombre_rama}}
-- **Último commit:** {{hash_7_chars}}
-- **Último zip entregado:** {{versión o "N/A"}}
+- **Rama:** {{BRANCH_OR_NA}}
+- **Último commit:** {{VERIFIED_SHORT_HASH_OR_NA}}
+- **Último zip entregado:** {{VERSION_OR_NA}}
 
 ### Archivos clave para retomar
 
-1. `SESSION_HANDOFF.md` — esta sección, por su código
-2. `sprint_report.md` — entrada con el mismo código `{{HO-...}}`
-3. `AUDIT_LOG.md` — si existe (bugs pendientes y clasificación)
-
-<!-- Al consumir (modo resume), esta sección entera se reemplaza por su tombstone
-     (etiqueta y emoji transicionan juntos: [closed-pending] 🟢 → [closed] ✅):
-     ## [closed] ✅ {{HO-...}} — {{workstream}} · consumido {{AAAA-MM-DD}} · detalle en sprint_report.md -->
+1. `{{ABSOLUTE_PROJECT_ROOT}}/SESSION_HANDOFF.md` — full section for `{{HANDOFF_CODE}}`.
+2. `{{ABSOLUTE_PROJECT_ROOT}}/sprint_report.md` — complete entry for the same code.
+3. {{REFERENCED_PLAN_SOURCE_AND_AUDIT_PATHS_IF_PRESENT}}

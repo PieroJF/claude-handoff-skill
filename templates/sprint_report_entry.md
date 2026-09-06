@@ -4,7 +4,11 @@
 
 ## Sesión: {{YYYY-MM-DD}} — {{TÍTULO_BREVE}}
 
-**Código de handoff:** {{HO-AAAAMMDD-workstream-HHMM}}  <!-- mismo código que la sección en SESSION_HANDOFF.md -->
+**Código de handoff:** {{HO-AAAAMMDD-workstream-HHMM}}
+
+<!-- At close, use the same code as the registry section. For a report-only supplement,
+     use a unique new code and add **Handoff relacionado:** ORIGINAL_CODE after this field.
+     Remove this instruction; never reuse an existing report code for different content. -->
 
 **Timestamps:**
 - Inicio aproximado: {{HH:MM}} [estimado]
@@ -61,13 +65,14 @@
 - **Último commit:** {{hash_7_chars}}
 - **Último zip entregado:** {{versión o "N/A"}}
 
-### Rescatado por canal (opcional · append-only)
+### Estado completo para relevo
 
-<!-- NO se rellena al cerrar. Se ANEXA después, si una sesión viva aporta contexto que contradice,
-     corrige o añade a lo escrito arriba. Ante duda, anexar de más: una línea sobrante no cuesta
-     nada; perder el contexto por segunda vez, sí. Nunca se reabre la sección de SESSION_HANDOFF.md
-     para esto — ese ciclo de vida es unidireccional. -->
+{{FULL_HANDOFF_SECTION_INSIDE_A_SAFE_MARKDOWN_FENCE}}
 
-#### Rescatado por canal · {{AAAA-MM-DD HH:MM}}
-Fuente: {{nombre-sesión}}
-> {{lo que aportó, citado}}
+<!-- Replace every placeholder and remove instructional comments in the prepared UTF-8 input.
+     Preserve the full section above, including next step, warnings, and root. Use a fence longer
+     than every same-character fence in that section. Keep required fields; use N/A if inapplicable.
+     Add a rescued-channel entry only when actual new or corrected context arrives through an
+     authorized channel. Omit that entire block at normal close; do not leave an unfilled placeholder.
+     Follow shared-protocol.md for source, timestamp, evidence labels, and append-report.
+     Never reopen the original registry section or rewrite a prior report entry. -->
