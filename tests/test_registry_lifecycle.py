@@ -4,6 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import subprocess
@@ -213,6 +214,29 @@ class LifecycleTests(unittest.TestCase):
                 self.assertEqual(process.returncode, 0, (stdout, stderr))
         self.assertEqual(self.path.read_bytes(), self.header.read_bytes())
         self.assertEqual(self.report.read_bytes().count(f"**Código de handoff:** {self.CODE}".encode("utf-8")), 1)
+
+    def test_cli_get_live_json_works_with_windows_legacy_stdout_encoding(self):
+        self.init()
+        registry.insert_section(self.path, self.section, self.root)
+        environment = dict(os.environ, PYTHONIOENCODING="cp1252", PYTHONUTF8="0")
+        result = subprocess.run([sys.executable, "-B", str(Path(registry.__file__).resolve()),
+                                 "get-live", "--registry", str(self.path), "--project-root", str(self.root),
+                                 "--code", self.CODE], capture_output=True, timeout=15, env=environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["section"], self.section.read_bytes().decode("utf-8"))
+
+    def test_invalid_report_heading_is_rejected_before_append_and_can_retry(self):
+        append = self.api("append_report_once")
+        correct = self.entry.read_bytes()
+        self.report.write_bytes(b"# Previous report\nPreserve these bytes.\n")
+        before = self.report.read_bytes()
+        self.entry.write_bytes(correct.replace("## Sesión:".encode("utf-8"), b"## Wrong:"))
+        with self.assertRaises(registry.RegistryError):
+            append(self.report, self.entry, self.CODE)
+        self.assertEqual(self.report.read_bytes(), before)
+        self.entry.write_bytes(correct)
+        append(self.report, self.entry, self.CODE)
+        self.assertIn(correct, self.report.read_bytes())
 
     def test_cli_lifecycle_reads_and_consumes_only_after_durable_report(self):
         script = str(Path(registry.__file__).resolve())

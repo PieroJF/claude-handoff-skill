@@ -579,6 +579,7 @@ def _validated_entry(entry: bytes, code: str) -> None:
     _validate_input(text, "Report entry")
     if _report_codes(text) != [code] or not _top_level_headers(text):
         raise RegistryError("Entry must have a session heading and exactly one matching handoff code.")
+    _verify_report_entry(entry, code)
 
 
 def _append_once_locked(report: Path, entry: bytes, code: str) -> None:
@@ -762,13 +763,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.command == "list-live":
             result = list_live(arguments.registry, arguments.project_root)
             if arguments.json:
-                print(json.dumps(result, ensure_ascii=False))
+                print(json.dumps(result, ensure_ascii=True))
             else:
                 for section in result:
                     print("\t".join(json.dumps(section[key], ensure_ascii=True)
                                     for key in ("code", "workstream", "next_step")))
         elif arguments.command == "get-live":
-            print(json.dumps(get_live(arguments.registry, arguments.code, arguments.project_root), ensure_ascii=False))
+            print(json.dumps(get_live(arguments.registry, arguments.code, arguments.project_root), ensure_ascii=True))
         elif arguments.command == "init":
             init_registry(arguments.registry, arguments.header_file, arguments.project_root)
         elif arguments.command == "migrate-legacy":
